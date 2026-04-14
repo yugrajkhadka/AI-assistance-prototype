@@ -4,12 +4,16 @@ import {
   Upload, FileText, Cloud, Type, Shield, Globe, CheckCircle2,
   AlertCircle, Loader2, Film, Clock, Hash
 } from 'lucide-react'
+import { upload as uploadApi } from '../../services/api'
+import { useProject } from '../../context/ProjectContext'
 
 export default function ScriptUpload() {
   const navigate = useNavigate()
+  const { setProjectFromUpload } = useProject()
   const [dragActive, setDragActive] = useState(false)
-  const [uploadState, setUploadState] = useState('idle') // idle | uploading | parsing | complete
+  const [uploadState, setUploadState] = useState('idle')
   const [uploadedFile, setUploadedFile] = useState(null)
+  const [uploadError, setUploadError] = useState(null)
   const [pasteMode, setPasteMode] = useState(false)
   const [pasteText, setPasteText] = useState('')
   const [settings, setSettings] = useState({
@@ -25,23 +29,29 @@ export default function ScriptUpload() {
     else if (e.type === 'dragleave') setDragActive(false)
   }, [])
 
-  const simulateUpload = (fileName) => {
+  const doUpload = async (file) => {
     setUploadState('uploading')
-    setTimeout(() => {
+    setUploadError(null)
+    try {
+      const formData = new FormData()
+      formData.append('script', file)
+      formData.append('language', settings.language)
+      formData.append('privacy', settings.privacy)
+
       setUploadState('parsing')
-      setTimeout(() => {
-        setUploadedFile({
-          name: fileName,
-          scenes: 42,
-          pages: 118,
-          runtime: '1h 47m',
-          characters: 12,
-          locations: 18,
-          format: 'FDX',
-        })
-        setUploadState('complete')
-      }, 1500)
-    }, 1200)
+      const result = await uploadApi.file(formData)
+
+      setProjectFromUpload({ _id: result.projectId, name: result.file.name, ...result.parseResult })
+      setUploadedFile({
+        name: result.file.name,
+        ...result.parseResult,
+        projectId: result.projectId,
+      })
+      setUploadState('complete')
+    } catch (err) {
+      setUploadError(err.message)
+      setUploadState('idle')
+    }
   }
 
   const handleDrop = useCallback((e) => {
@@ -49,16 +59,38 @@ export default function ScriptUpload() {
     e.stopPropagation()
     setDragActive(false)
     const file = e.dataTransfer?.files?.[0]
-    if (file) simulateUpload(file.name)
-  }, [])
+    if (file) doUpload(file)
+  }, [settings])
 
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0]
-    if (file) simulateUpload(file.name)
+    if (file) doUpload(file)
   }
 
-  const handlePasteSubmit = () => {
-    if (pasteText.trim()) simulateUpload('Pasted Script.txt')
+  const handlePasteSubmit = async () => {
+    if (!pasteText.trim()) return
+    setUploadState('uploading')
+    setUploadError(null)
+    try {
+      setUploadState('parsing')
+      const result = await uploadApi.text({
+        text: pasteText,
+        name: 'Pasted Script',
+        language: settings.language,
+        privacy: settings.privacy,
+      })
+
+      setProjectFromUpload({ _id: result.projectId, name: result.file.name, ...result.parseResult })
+      setUploadedFile({
+        name: result.file.name,
+        ...result.parseResult,
+        projectId: result.projectId,
+      })
+      setUploadState('complete')
+    } catch (err) {
+      setUploadError(err.message)
+      setUploadState('idle')
+    }
   }
 
   return (
@@ -68,10 +100,17 @@ export default function ScriptUpload() {
         <p className="text-slate-400">Upload your screenplay to begin AI-powered cinematography planning.</p>
       </div>
 
+      {/* Error Display */}
+      {uploadError && (
+        <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          {uploadError}
+        </div>
+      )}
+
       {/* Upload Methods */}
       {uploadState === 'idle' && !pasteMode && (
         <>
-          {/* Drag & Drop Zone */}
           <div
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
@@ -95,7 +134,6 @@ export default function ScriptUpload() {
             </label>
           </div>
 
-          {/* Alternative Methods */}
           <div className="flex gap-3 mt-4">
             <button
               onClick={() => setPasteMode(true)}
@@ -116,37 +154,21 @@ export default function ScriptUpload() {
             </button>
           </div>
 
-          {/* Settings */}
           <div className="mt-6 p-4 rounded-lg border border-slate-800 bg-slate-900/30">
             <div className="text-sm font-medium text-white mb-3">Upload Settings</div>
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="text-xs text-slate-500 mb-1 block">Language</label>
-                <select
-                  value={settings.language}
-                  onChange={(e) => setSettings({ ...settings, language: e.target.value })}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-1.5 text-sm text-white"
-                >
-                  <option>English</option>
-                  <option>Spanish</option>
-                  <option>French</option>
-                  <option>German</option>
-                  <option>Japanese</option>
-                  <option>Korean</option>
+                <select value={settings.language} onChange={(e) => setSettings({ ...settings, language: e.target.value })} className="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-1.5 text-sm text-white">
+                  <option>English</option><option>Spanish</option><option>French</option><option>German</option><option>Japanese</option><option>Korean</option>
                 </select>
               </div>
               <div>
                 <label className="text-xs text-slate-500 mb-1 block">Privacy</label>
                 <div className="flex items-center gap-2">
                   <Shield className="w-4 h-4 text-onset-400" />
-                  <select
-                    value={settings.privacy}
-                    onChange={(e) => setSettings({ ...settings, privacy: e.target.value })}
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded-md px-3 py-1.5 text-sm text-white"
-                  >
-                    <option value="private">Private</option>
-                    <option value="team">Team Only</option>
-                    <option value="shared">Shared</option>
+                  <select value={settings.privacy} onChange={(e) => setSettings({ ...settings, privacy: e.target.value })} className="flex-1 bg-slate-800 border border-slate-700 rounded-md px-3 py-1.5 text-sm text-white">
+                    <option value="private">Private</option><option value="team">Team Only</option><option value="shared">Shared</option>
                   </select>
                 </div>
               </div>
@@ -154,15 +176,8 @@ export default function ScriptUpload() {
                 <label className="text-xs text-slate-500 mb-1 block">Format</label>
                 <div className="flex items-center gap-2">
                   <Globe className="w-4 h-4 text-slate-500" />
-                  <select
-                    value={settings.format}
-                    onChange={(e) => setSettings({ ...settings, format: e.target.value })}
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded-md px-3 py-1.5 text-sm text-white"
-                  >
-                    <option value="auto-detect">Auto-Detect</option>
-                    <option value="fdx">Final Draft (FDX)</option>
-                    <option value="fountain">Fountain</option>
-                    <option value="pdf">PDF</option>
+                  <select value={settings.format} onChange={(e) => setSettings({ ...settings, format: e.target.value })} className="flex-1 bg-slate-800 border border-slate-700 rounded-md px-3 py-1.5 text-sm text-white">
+                    <option value="auto-detect">Auto-Detect</option><option value="fdx">Final Draft (FDX)</option><option value="fountain">Fountain</option><option value="pdf">PDF</option>
                   </select>
                 </div>
               </div>
@@ -181,14 +196,8 @@ export default function ScriptUpload() {
             className="w-full h-64 bg-slate-900/50 border border-slate-700 rounded-xl p-4 text-sm text-white font-mono resize-none focus:outline-none focus:border-cinema-500 transition"
           />
           <div className="flex gap-3 mt-3">
-            <button onClick={() => setPasteMode(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white transition">
-              Back
-            </button>
-            <button
-              onClick={handlePasteSubmit}
-              disabled={!pasteText.trim()}
-              className="px-5 py-2 bg-cinema-500 hover:bg-cinema-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition"
-            >
+            <button onClick={() => setPasteMode(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white transition">Back</button>
+            <button onClick={handlePasteSubmit} disabled={!pasteText.trim()} className="px-5 py-2 bg-cinema-500 hover:bg-cinema-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition">
               Analyze Script
             </button>
           </div>
@@ -200,18 +209,13 @@ export default function ScriptUpload() {
         <div className="text-center py-16 animate-fadeIn">
           <Loader2 className="w-12 h-12 text-cinema-400 mx-auto mb-4 animate-spin" />
           <div className="text-lg font-medium text-white mb-2">
-            {uploadState === 'uploading' ? 'Uploading script...' : 'Parsing & validating...'}
+            {uploadState === 'uploading' ? 'Uploading script...' : 'Parsing & extracting data...'}
           </div>
           <div className="w-64 mx-auto bg-slate-800 rounded-full h-2 mt-4">
-            <div
-              className="bg-cinema-500 h-2 rounded-full transition-all duration-1000"
-              style={{ width: uploadState === 'uploading' ? '45%' : '80%' }}
-            />
+            <div className="bg-cinema-500 h-2 rounded-full transition-all duration-1000" style={{ width: uploadState === 'uploading' ? '45%' : '80%' }} />
           </div>
           <p className="text-sm text-slate-500 mt-3">
-            {uploadState === 'uploading'
-              ? 'Validating format and encoding...'
-              : 'Extracting scenes, characters, and metadata...'}
+            {uploadState === 'uploading' ? 'Validating format and encoding...' : 'Extracting scenes, characters, and metadata...'}
           </p>
         </div>
       )}
@@ -248,19 +252,10 @@ export default function ScriptUpload() {
           </div>
 
           <div className="flex gap-3">
-            <button
-              onClick={() => {
-                setUploadState('idle')
-                setUploadedFile(null)
-              }}
-              className="px-4 py-2.5 border border-slate-700 rounded-lg text-sm text-slate-300 hover:bg-slate-800 transition"
-            >
+            <button onClick={() => { setUploadState('idle'); setUploadedFile(null) }} className="px-4 py-2.5 border border-slate-700 rounded-lg text-sm text-slate-300 hover:bg-slate-800 transition">
               Upload Different Script
             </button>
-            <button
-              onClick={() => navigate('/pre-production/analysis')}
-              className="flex-1 px-5 py-2.5 bg-cinema-500 hover:bg-cinema-600 text-white rounded-lg text-sm font-medium transition flex items-center justify-center gap-2"
-            >
+            <button onClick={() => navigate('/pre-production/analysis')} className="flex-1 px-5 py-2.5 bg-cinema-500 hover:bg-cinema-600 text-white rounded-lg text-sm font-medium transition flex items-center justify-center gap-2">
               <Film className="w-4 h-4" />
               Run AI Analysis
             </button>
@@ -268,7 +263,6 @@ export default function ScriptUpload() {
         </div>
       )}
 
-      {/* Format Validator Info */}
       {uploadState === 'idle' && (
         <div className="mt-6 flex items-start gap-3 p-3 rounded-lg bg-slate-800/30 border border-slate-800">
           <AlertCircle className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />

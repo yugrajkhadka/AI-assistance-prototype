@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   List, Image, Sun, Camera, Maximize, Move, ChevronRight, ChevronDown,
-  Check, Edit3, MessageSquare, Pin, Eye, ArrowUpDown, Aperture, Focus
+  Check, Edit3, MessageSquare, Pin, Eye, ArrowUpDown, Aperture, Focus, AlertTriangle, BarChart3
 } from 'lucide-react'
-import { sampleScenes } from '../../data/sampleProject'
+import { useProject } from '../../context/ProjectContext'
+import { shots as shotsApi } from '../../services/api'
 
 const outputTabs = [
   { id: 'shots', label: 'Shot List', icon: List },
@@ -42,12 +43,32 @@ const compositionRules = [
 
 export default function GeneratedOutputs() {
   const navigate = useNavigate()
+  const { currentProject, analysisData } = useProject()
   const [activeTab, setActiveTab] = useState('shots')
   const [selectedScene, setSelectedScene] = useState(0)
   const [storyboardStyle, setStoryboardStyle] = useState('Cinematic')
   const [expandedShot, setExpandedShot] = useState(null)
 
-  const scene = sampleScenes[selectedScene]
+  const scenes = analysisData?.scenes || []
+  const scene = scenes[selectedScene]
+
+  if (!analysisData || scenes.length === 0) {
+    return (
+      <div className="animate-fadeIn text-center py-16">
+        <AlertTriangle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
+        <div className="text-lg text-white mb-2">No analysis data</div>
+        <p className="text-sm text-slate-400 mb-4">Run AI analysis first to generate outputs.</p>
+        <button onClick={() => navigate('/pre-production/analysis')} className="px-4 py-2 bg-cinema-500 text-white rounded-lg text-sm">Go to Analysis</button>
+      </div>
+    )
+  }
+
+  const handleApproveShot = async (shotId) => {
+    if (!currentProject?._id) return
+    try {
+      await shotsApi.updateStatus(currentProject._id, selectedScene, shotId, { status: 'approved' })
+    } catch { /* handle */ }
+  }
 
   return (
     <div className="animate-fadeIn">
@@ -65,10 +86,10 @@ export default function GeneratedOutputs() {
       </div>
 
       {/* Scene Selector */}
-      <div className="flex gap-2 mb-4">
-        {sampleScenes.map((s, i) => (
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {scenes.map((s, i) => (
           <button
-            key={s.id}
+            key={s.number || i}
             onClick={() => setSelectedScene(i)}
             className={`px-3 py-1.5 rounded-lg text-sm transition ${
               selectedScene === i
@@ -76,7 +97,7 @@ export default function GeneratedOutputs() {
                 : 'bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-800'
             }`}
           >
-            SC {s.number}
+            SC {s.number || i + 1}
           </button>
         ))}
       </div>
@@ -87,7 +108,7 @@ export default function GeneratedOutputs() {
           <span className="text-sm font-medium text-white">{scene.title}</span>
           <span className="text-xs text-slate-500 ml-3">{scene.mood} &middot; {scene.style}</span>
         </div>
-        <span className="text-xs text-slate-500">{scene.shots.length} shots &middot; {scene.duration}</span>
+        <span className="text-xs text-slate-500">{scene.shots?.length || 0} shots &middot; {scene.duration}</span>
       </div>
 
       {/* Output Tabs */}
@@ -111,9 +132,9 @@ export default function GeneratedOutputs() {
       {/* Shot List */}
       {activeTab === 'shots' && (
         <div className="space-y-2 animate-fadeIn">
-          {scene.shots.map((shot, idx) => (
+          {(scene.shots || []).map((shot, idx) => (
             <div
-              key={shot.id}
+              key={shot._id || shot.id || idx}
               className="rounded-lg border border-slate-800 bg-slate-900/40 overflow-hidden"
             >
               <div
@@ -157,7 +178,7 @@ export default function GeneratedOutputs() {
                       Confidence: <span className={`font-medium ${shot.confidence >= 90 ? 'text-onset-400' : shot.confidence >= 80 ? 'text-amber-400' : 'text-red-400'}`}>{shot.confidence}%</span>
                     </div>
                     <div className="flex-1" />
-                    <button className="p-1.5 rounded hover:bg-slate-700 text-slate-500 hover:text-white transition" title="Accept">
+                    <button onClick={() => handleApproveShot(shot._id || shot.id)} className="p-1.5 rounded hover:bg-slate-700 text-slate-500 hover:text-white transition" title="Accept">
                       <Check className="w-3.5 h-3.5" />
                     </button>
                     <button className="p-1.5 rounded hover:bg-slate-700 text-slate-500 hover:text-white transition" title="Edit">
@@ -197,10 +218,10 @@ export default function GeneratedOutputs() {
             ))}
           </div>
           <div className="grid grid-cols-2 gap-4">
-            {scene.storyboard.map((frame, i) => {
-              const shot = scene.shots.find(s => s.id === frame.shotId)
+            {(scene.storyboard || []).map((frame, i) => {
+              const shot = scene.shots?.[frame.shotIndex ?? i]
               return (
-                <div key={frame.id} className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden group">
+                <div key={frame.id || i} className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden group">
                   <div className="aspect-video bg-gradient-to-br from-slate-800 to-slate-900 relative flex items-center justify-center">
                     {/* Simulated storyboard frame with grid overlay */}
                     <div className="absolute inset-0 opacity-20">
@@ -215,7 +236,7 @@ export default function GeneratedOutputs() {
                       <div className="text-xs text-slate-600 mt-1">{storyboardStyle} style</div>
                     </div>
                     <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/50 text-xs text-white font-mono">
-                      {i + 1}/{scene.storyboard.length}
+                      {i + 1}/{scene.storyboard?.length || 0}
                     </div>
                     <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-3 opacity-0 group-hover:opacity-100 transition">
                       <div className="flex gap-1 justify-end">
@@ -240,13 +261,13 @@ export default function GeneratedOutputs() {
       )}
 
       {/* Lighting Plans */}
-      {activeTab === 'lighting' && (
+      {activeTab === 'lighting' && scene.lightingPlan && (
         <div className="animate-fadeIn space-y-4">
           <div className="grid grid-cols-3 gap-4">
             {[
-              { label: 'Key Light', data: scene.lightingPlan.keyLight, color: 'cinema' },
-              { label: 'Fill Light', data: scene.lightingPlan.fillLight, color: 'amber' },
-              { label: 'Back Light', data: scene.lightingPlan.backLight, color: 'blue' },
+              { label: 'Key Light', data: scene.lightingPlan.keyLight || {}, color: 'cinema' },
+              { label: 'Fill Light', data: scene.lightingPlan.fillLight || {}, color: 'amber' },
+              { label: 'Back Light', data: scene.lightingPlan.backLight || {}, color: 'blue' },
             ].map(({ label, data, color }) => (
               <div key={label} className="p-4 rounded-xl border border-slate-800 bg-slate-900/40">
                 <div className={`text-sm font-medium text-${color === 'cinema' ? 'cinema' : color}-400 mb-3`}>{label}</div>
@@ -280,7 +301,7 @@ export default function GeneratedOutputs() {
               <span className="text-sm font-medium text-white">Lighting Ratio</span>
               <span className="text-sm text-cinema-400 font-mono">{scene.lightingPlan.ratio}</span>
             </div>
-            {scene.lightingPlan.practicals.length > 0 && (
+            {scene.lightingPlan.practicals?.length > 0 && (
               <div className="mb-3">
                 <div className="text-xs text-slate-500 mb-1">Practicals</div>
                 <div className="flex gap-2 flex-wrap">
@@ -336,8 +357,8 @@ export default function GeneratedOutputs() {
       {/* Camera & Lens */}
       {activeTab === 'camera' && (
         <div className="animate-fadeIn space-y-3">
-          {scene.shots.map((shot, i) => (
-            <div key={shot.id} className="p-4 rounded-xl border border-slate-800 bg-slate-900/40">
+          {(scene.shots || []).map((shot, i) => (
+            <div key={shot._id || shot.id || i} className="p-4 rounded-xl border border-slate-800 bg-slate-900/40">
               <div className="flex items-center gap-3 mb-3">
                 <span className="text-xs font-mono text-cinema-400">Shot {i + 1}</span>
                 <span className="text-sm text-white font-medium">{shot.description}</span>
@@ -405,7 +426,7 @@ export default function GeneratedOutputs() {
                 <div className="absolute top-1/3 left-0 right-0 border-t border-cinema-400/40" />
                 <div className="absolute top-2/3 left-0 right-0 border-t border-cinema-400/40" />
               </div>
-              {scene.characters.map((char, i) => (
+              {(scene.characters || []).map((char, i) => (
                 <div
                   key={char}
                   className="absolute w-10 h-10 rounded-full bg-cinema-500/30 border-2 border-cinema-400 flex items-center justify-center"
@@ -440,8 +461,8 @@ export default function GeneratedOutputs() {
       {/* Movement */}
       {activeTab === 'movement' && (
         <div className="animate-fadeIn space-y-3">
-          {scene.shots.map((shot, i) => (
-            <div key={shot.id} className="p-4 rounded-xl border border-slate-800 bg-slate-900/40 flex items-center gap-4">
+          {(scene.shots || []).map((shot, i) => (
+            <div key={shot._id || shot.id || i} className="p-4 rounded-xl border border-slate-800 bg-slate-900/40 flex items-center gap-4">
               <span className="text-xs font-mono text-cinema-400 w-16">Shot {i + 1}</span>
               <div className="flex-1">
                 <div className="text-sm text-white">{shot.description}</div>
@@ -467,10 +488,10 @@ export default function GeneratedOutputs() {
             <div className="text-sm font-medium text-white mb-3">Movement Summary</div>
             <div className="grid grid-cols-4 gap-3 text-center text-sm">
               {[
-                { label: 'Static', count: scene.shots.filter(s => s.movement === 'Static').length },
-                { label: 'Pan/Tilt', count: scene.shots.filter(s => s.movement.includes('Pan')).length },
-                { label: 'Push/Pull', count: scene.shots.filter(s => s.movement.includes('push')).length },
-                { label: 'Tracking', count: scene.shots.filter(s => s.movement.includes('Steadicam') || s.movement.includes('Handheld')).length },
+                { label: 'Static', count: (scene.shots || []).filter(s => s.movement === 'Static').length },
+                { label: 'Pan/Tilt', count: (scene.shots || []).filter(s => s.movement?.includes('Pan')).length },
+                { label: 'Push/Pull', count: (scene.shots || []).filter(s => s.movement?.toLowerCase().includes('push')).length },
+                { label: 'Tracking', count: (scene.shots || []).filter(s => s.movement?.includes('Steadicam') || s.movement?.includes('Handheld')).length },
               ].map((m) => (
                 <div key={m.label} className="p-2 rounded-lg bg-slate-800/50">
                   <div className="text-lg font-bold text-white">{m.count}</div>

@@ -3,9 +3,10 @@ import {
   Sparkles, Camera, Sun, MapPin, Move, Sliders, Lock, Unlock,
   AlertTriangle, CheckCircle2, TrendingUp, Send, Mic, MicOff,
   StickyNote, Zap, Eye, BarChart3, Users, Shield, ChevronRight,
-  Image, CircleDot, Layers
+  Image, CircleDot, Layers, Loader2
 } from 'lucide-react'
-import { sampleScenes, sampleCameraSettings } from '../../data/sampleProject'
+import { useProject } from '../../context/ProjectContext'
+import { onset as onsetApi } from '../../services/api'
 
 const guidanceModes = [
   { id: 'suggest', label: 'Suggest', desc: 'Shows recommendations, no auto-apply', color: 'text-cinema-400' },
@@ -13,50 +14,60 @@ const guidanceModes = [
   { id: 'lock', label: 'Lock', desc: 'Non-intrusive — locked areas stay unchanged', color: 'text-onset-400' },
 ]
 
-const recommendations = [
+const defaultRecommendations = [
   { id: 1, type: 'camera', icon: Camera, title: 'Switch to 85mm for tighter framing', impact: 'high', confidence: 93, desc: 'Current 50mm is showing too much background clutter. 85mm will isolate the subject.' },
   { id: 2, type: 'lighting', icon: Sun, title: 'Increase fill by 0.5 stop', impact: 'medium', confidence: 87, desc: 'Shadow side is deeper than the plan. Small fill increase maintains intended ratio.' },
   { id: 3, type: 'position', icon: MapPin, title: 'Camera 6 inches left for cleaner background', impact: 'low', confidence: 81, desc: 'Minor reposition avoids the edge of the practicals entering frame.' },
   { id: 4, type: 'movement', icon: Move, title: 'Slow push-in during dialogue', impact: 'high', confidence: 90, desc: 'Scene builds emotional intensity — subtle forward movement enhances tension.' },
 ]
 
-const chatHistory = [
-  { role: 'system', text: 'CineAssist AI connected. Scene 1 loaded. Ready for on-set guidance.' },
-  { role: 'user', text: 'What lens should I use for the close-up of Elena?' },
-  { role: 'assistant', text: 'For Shot 2 (CU of Elena\'s hand reaching for the frame), the plan calls for 85mm. Given the current camera-to-subject distance of ~4ft, this gives a comfortable working distance with nice compression and bokeh at T1.5. If you need more room, the 75mm is a solid alternative with similar rendering.' },
-  { role: 'user', text: 'The window light changed — it\'s sunnier now.' },
-  { role: 'assistant', text: 'I see the plan assumes overcast soft light. With direct sun:\n\n1. Add ND 0.9 (3 stops) to maintain T1.5\n2. Rig a 4x4 silk on the window to diffuse\n3. Your fill bounce will need repositioning — move 1ft closer to camera-right\n\nThis preserves the naturalistic look while compensating for the harder light. Want me to update camera settings?' },
-]
-
-const deviationAlerts = [
+const defaultDeviationAlerts = [
   { id: 1, type: 'lighting', severity: 'warning', text: 'Fill ratio drifted to 4:1 — plan specifies 3:1', fix: 'Move bounce board 8" closer' },
   { id: 2, type: 'coverage', severity: 'info', text: 'Missing reverse angle on David — 70% scene coverage', fix: 'Schedule OTS favoring David' },
 ]
 
 export default function GuidancePanel() {
+  const { currentProject, analysisData } = useProject()
   const [activeMode, setActiveMode] = useState('suggest')
   const [activeTab, setActiveTab] = useState('guidance')
   const [chatInput, setChatInput] = useState('')
-  const [messages, setMessages] = useState(chatHistory)
+  const [messages, setMessages] = useState([
+    { role: 'system', text: 'CineAssist AI connected. Ready for on-set guidance.' },
+  ])
   const [voiceActive, setVoiceActive] = useState(false)
   const [lockedAreas, setLockedAreas] = useState({ lighting: false, camera: false, framing: false })
+  const [selectedScene, setSelectedScene] = useState(0)
+  const [chatLoading, setChatLoading] = useState(false)
   const chatEndRef = useRef(null)
+
+  const scenes = analysisData?.scenes || []
+  const scene = scenes[selectedScene] || { title: 'No Scene', shots: [], characters: [], props: [] }
+  const recommendations = defaultRecommendations
+  const deviationAlerts = defaultDeviationAlerts
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!chatInput.trim()) return
-    setMessages([...messages, { role: 'user', text: chatInput }])
-    const input = chatInput
+    const userMsg = chatInput
+    setMessages(prev => [...prev, { role: 'user', text: userMsg }])
     setChatInput('')
-    setTimeout(() => {
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        text: `Analyzing your request about "${input.substring(0, 40)}..." — Based on the current scene setup and plan, I recommend adjusting the approach. The AI has evaluated multiple options and suggests maintaining the planned shot with minor modifications for on-set conditions.`
-      }])
-    }, 1000)
+
+    if (currentProject?._id) {
+      setChatLoading(true)
+      try {
+        const res = await onsetApi.chat(currentProject._id, userMsg, selectedScene)
+        setMessages(prev => [...prev, { role: 'assistant', text: res.response || res.text || 'No response from AI.' }])
+      } catch {
+        setMessages(prev => [...prev, { role: 'assistant', text: `Analyzing your request about "${userMsg.substring(0, 40)}..." — Based on the current scene setup and plan, I recommend adjusting the approach. The AI has evaluated multiple options and suggests maintaining the planned shot with minor modifications for on-set conditions.` }])
+      } finally {
+        setChatLoading(false)
+      }
+    } else {
+      setMessages(prev => [...prev, { role: 'assistant', text: `Analyzing your request about "${userMsg.substring(0, 40)}..." — Based on the current scene setup and plan, I recommend adjusting the approach. The AI has evaluated multiple options and suggests maintaining the planned shot with minor modifications for on-set conditions.` }])
+    }
   }
 
   return (
@@ -66,6 +77,21 @@ export default function GuidancePanel() {
           <h1 className="text-2xl font-bold text-white mb-1">On-Set Guidance & Assistant</h1>
           <p className="text-slate-400 text-sm">Real-time AI recommendations, scene analysis, and intelligent chat</p>
         </div>
+        {scenes.length > 1 && (
+          <div className="flex gap-1">
+            {scenes.map((s, i) => (
+              <button
+                key={s._id || s.id || i}
+                onClick={() => setSelectedScene(i)}
+                className={`px-2 py-1 rounded text-xs transition ${
+                  selectedScene === i ? 'bg-cinema-500 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                SC {s.number || i + 1}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Mode Selector */}
@@ -185,12 +211,15 @@ export default function GuidancePanel() {
                 <span className="text-sm font-medium text-white">Actor Detection</span>
               </div>
               <div className="space-y-1">
-                {sampleScenes[0].characters.map((c) => (
+                {(scene.characters || []).map((c) => (
                   <div key={c} className="flex items-center gap-2">
                     <CheckCircle2 className="w-3 h-3 text-onset-400" />
                     <span className="text-xs text-slate-300">{c} — in frame</span>
                   </div>
                 ))}
+                {(scene.characters || []).length === 0 && (
+                  <div className="text-xs text-slate-500 italic">No character data</div>
+                )}
               </div>
             </div>
             <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/40">
@@ -199,12 +228,15 @@ export default function GuidancePanel() {
                 <span className="text-sm font-medium text-white">Prop Check</span>
               </div>
               <div className="space-y-1">
-                {sampleScenes[0].props.map((p) => (
+                {(scene.props || []).map((p) => (
                   <div key={p} className="flex items-center gap-2">
                     <CheckCircle2 className="w-3 h-3 text-onset-400" />
                     <span className="text-xs text-slate-300">{p}</span>
                   </div>
                 ))}
+                {(scene.props || []).length === 0 && (
+                  <div className="text-xs text-slate-500 italic">No prop data</div>
+                )}
               </div>
             </div>
             <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/40">
@@ -236,12 +268,18 @@ export default function GuidancePanel() {
                 <BarChart3 className="w-4 h-4 text-cinema-400" />
                 <span className="text-sm font-medium text-white">Coverage Heatmap</span>
               </div>
-              <span className="text-xs text-slate-500">Scene 1 — 75% covered</span>
+              <span className="text-xs text-slate-500">
+                {scene.title || `Scene ${selectedScene + 1}`} — {
+                  (scene.shots || []).length > 0
+                    ? `${Math.round((scene.shots.filter(s => s.status === 'approved').length / scene.shots.length) * 100)}% covered`
+                    : 'No shots'
+                }
+              </span>
             </div>
             <div className="grid grid-cols-4 gap-1">
-              {sampleScenes[0].shots.map((s, i) => (
+              {(scene.shots || []).map((s, i) => (
                 <div
-                  key={s.id}
+                  key={s._id || s.id || i}
                   className={`p-3 rounded-lg text-center ${
                     s.status === 'approved' ? 'bg-onset-500/20 border border-onset-500/20' :
                     s.status === 'pending' ? 'bg-amber-500/10 border border-amber-500/20' :
@@ -305,6 +343,20 @@ export default function GuidancePanel() {
                 </div>
               </div>
             ))}
+            {chatLoading && (
+              <div className="flex justify-start">
+                <div className="max-w-[80%] p-3 rounded-xl text-sm bg-slate-800/60 text-slate-300 rounded-bl-sm border border-slate-700/50">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Sparkles className="w-3 h-3 text-cinema-400" />
+                    <span className="text-[11px] text-cinema-400 font-medium">CineAssist AI</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-cinema-400" />
+                    <span className="text-slate-400">Thinking...</span>
+                  </div>
+                </div>
+              </div>
+            )}
             <div ref={chatEndRef} />
           </div>
 
@@ -345,7 +397,7 @@ export default function GuidancePanel() {
             />
             <button
               onClick={sendMessage}
-              disabled={!chatInput.trim()}
+              disabled={!chatInput.trim() || chatLoading}
               className="px-4 py-2.5 bg-cinema-500 hover:bg-cinema-600 disabled:opacity-40 text-white rounded-lg transition"
             >
               <Send className="w-4 h-4" />

@@ -4,7 +4,8 @@ import {
   GripVertical, Split, Merge, RotateCcw, Wand2, DollarSign, MapPin,
   Camera as CameraIcon, ChevronDown, ChevronRight, Send, History, Lock, ArrowRight
 } from 'lucide-react'
-import { sampleScenes, approvalLog } from '../../data/sampleProject'
+import { useProject } from '../../context/ProjectContext'
+import { shots as shotsApi } from '../../services/api'
 
 const statusConfig = {
   approved: { color: 'bg-onset-500/20 text-onset-400 border-onset-500/30', icon: CheckCircle2 },
@@ -13,27 +14,33 @@ const statusConfig = {
 }
 
 export default function ReviewApproval() {
+  const { currentProject, analysisData } = useProject()
   const [activeTab, setActiveTab] = useState('review')
   const [selectedScene, setSelectedScene] = useState(0)
   const [compareMode, setCompareMode] = useState(false)
   const [annotationText, setAnnotationText] = useState('')
   const [promptText, setPromptText] = useState('')
-  const [shotOrder, setShotOrder] = useState(sampleScenes[0].shots.map((_, i) => i))
   const [dragIdx, setDragIdx] = useState(null)
 
-  const scene = sampleScenes[selectedScene]
+  const scenes = analysisData?.scenes || []
+  const scene = scenes[selectedScene]
+  const approvalLog = analysisData?.approvalLog || []
+  const shotOrder = (scene?.shots || []).map((_, i) => i)
 
   const handleDragStart = (idx) => setDragIdx(idx)
   const handleDragOver = (e, idx) => {
     e.preventDefault()
     if (dragIdx === null || dragIdx === idx) return
-    const newOrder = [...shotOrder]
-    const [removed] = newOrder.splice(dragIdx, 1)
-    newOrder.splice(idx, 0, removed)
-    setShotOrder(newOrder)
     setDragIdx(idx)
   }
   const handleDragEnd = () => setDragIdx(null)
+
+  if (!scene) return (
+    <div className="animate-fadeIn text-center py-16">
+      <div className="text-lg text-white mb-2">No analysis data available</div>
+      <p className="text-sm text-slate-400">Run AI analysis first to review and approve outputs.</p>
+    </div>
+  )
 
   return (
     <div className="animate-fadeIn">
@@ -67,11 +74,11 @@ export default function ReviewApproval() {
       </div>
 
       {/* Scene Selector */}
-      <div className="flex gap-2 mb-4">
-        {sampleScenes.map((s, i) => (
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {scenes.map((s, i) => (
           <button
-            key={s.id}
-            onClick={() => { setSelectedScene(i); setShotOrder(sampleScenes[i].shots.map((_, j) => j)) }}
+            key={s.number || i}
+            onClick={() => setSelectedScene(i)}
             className={`px-3 py-1.5 rounded-lg text-sm transition ${
               selectedScene === i ? 'bg-cinema-500 text-white font-medium' : 'bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-800'
             }`}
@@ -99,11 +106,11 @@ export default function ReviewApproval() {
           </div>
 
           {/* Shots for review */}
-          {scene.shots.map((shot, i) => {
-            const cfg = statusConfig[shot.status]
+          {(scene.shots || []).map((shot, i) => {
+            const cfg = statusConfig[shot.status] || statusConfig.pending
             const StatusIcon = cfg.icon
             return (
-              <div key={shot.id} className={`rounded-xl border ${cfg.color.split(' ')[0].replace('bg-', 'border-').replace('/20', '/30')} bg-slate-900/40 overflow-hidden`}>
+              <div key={shot._id || shot.id || i} className={`rounded-xl border ${cfg.color.split(' ')[0].replace('bg-', 'border-').replace('/20', '/30')} bg-slate-900/40 overflow-hidden`}>
                 <div className="p-4">
                   <div className="flex items-center gap-3 mb-2">
                     <StatusIcon className={`w-4 h-4 ${cfg.color.split(' ')[1]}`} />

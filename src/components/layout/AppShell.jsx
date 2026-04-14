@@ -4,7 +4,7 @@ import {
   Film, Video, FolderOpen, Settings, HelpCircle, Search, Undo2, Redo2,
   MessageSquare, Download, Bell, ChevronDown, Menu, X, Clapperboard
 } from 'lucide-react'
-import { sampleProject } from '../../data/sampleProject'
+import { useProject } from '../../context/ProjectContext'
 import ContextPanel from './ContextPanel'
 
 const navItems = [
@@ -31,6 +31,7 @@ const navItems = [
 
 export default function AppShell() {
   const location = useLocation()
+  const { currentProject } = useProject()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [contextOpen, setContextOpen] = useState(false)
   const [notifications] = useState([
@@ -58,8 +59,8 @@ export default function AppShell() {
             <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 transition text-sm">
               <div className="w-2 h-2 rounded-full bg-onset-400 flex-shrink-0" />
               <div className="text-left flex-1 min-w-0">
-                <div className="text-white font-medium truncate">{sampleProject.name}</div>
-                <div className="text-slate-400 text-xs">{sampleProject.version} &middot; {sampleProject.syncStatus}</div>
+                <div className="text-white font-medium truncate">{currentProject?.name || 'No Project'}</div>
+                <div className="text-slate-400 text-xs">{currentProject ? 'Active' : 'Upload a script to begin'}</div>
               </div>
               <ChevronDown className="w-4 h-4 text-slate-500" />
             </button>

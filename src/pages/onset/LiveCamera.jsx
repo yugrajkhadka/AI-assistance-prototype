@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Camera, Video, Circle, Square, Tag, Sliders, Grid3x3, Crosshair,
   Eye, EyeOff, Thermometer, Sun, Aperture, Clock, Film, Layers,
-  ChevronDown, Wifi, WifiOff, Battery, HardDrive, Monitor, Move
+  ChevronDown, Wifi, WifiOff, Battery, HardDrive, Monitor, Move, Loader2
 } from 'lucide-react'
-import { sampleScenes, sampleCameraSettings } from '../../data/sampleProject'
+import { useProject } from '../../context/ProjectContext'
+import { onset as onsetApi } from '../../services/api'
 
 const framingGuides = [
   { id: 'thirds', label: 'Rule of Thirds', icon: Grid3x3 },
@@ -13,7 +14,15 @@ const framingGuides = [
   { id: 'aspect', label: 'Aspect Ratio', icon: Layers },
 ]
 
+const defaultCam = {
+  exposure: { value: 'f/2.8' }, iso: { value: 800 }, shutter: { value: '1/48', angle: '180°' },
+  whiteBalance: { value: '5600K' }, nd: { value: 'ND 0.6' },
+  lens: { focal: '50mm', tStop: 'T1.5' }, resolution: '4K DCI', frameRate: '24fps', codec: 'ARRIRAW',
+}
+
 export default function LiveCamera() {
+  const { currentProject, analysisData } = useProject()
+  const [onsetData, setOnsetData] = useState(null)
   const [selectedScene, setSelectedScene] = useState(0)
   const [selectedShot, setSelectedShot] = useState(0)
   const [recording, setRecording] = useState(false)
@@ -21,9 +30,24 @@ export default function LiveCamera() {
   const [showHUD, setShowHUD] = useState(true)
   const [currentTake, setCurrentTake] = useState(1)
 
-  const scene = sampleScenes[selectedScene]
-  const shot = scene.shots[selectedShot]
-  const cam = sampleCameraSettings
+  useEffect(() => {
+    if (currentProject?._id) {
+      onsetApi.getData(currentProject._id).then(setOnsetData).catch(() => {})
+    }
+  }, [currentProject?._id])
+
+  const scenes = onsetData?.scenes || analysisData?.scenes || []
+  const scene = scenes[selectedScene] || { title: 'No Scene', shots: [], mood: '', style: '', characters: [], locations: [] }
+  const shot = scene.shots?.[selectedShot] || { type: 'N/A', lens: '', movement: '', description: '' }
+  const cam = onsetData?.cameraSettings || analysisData?.cameraSettings || defaultCam
+
+  const handleCompleteShot = async () => {
+    if (!currentProject?._id || !shot._id) return
+    try {
+      await onsetApi.completeShot(currentProject._id, selectedScene, shot._id)
+      setCurrentTake(t => t + 1)
+    } catch { /* handle */ }
+  }
 
   const toggleOverlay = (id) => setOverlays(prev => ({ ...prev, [id]: !prev[id] }))
 
@@ -193,15 +217,15 @@ export default function LiveCamera() {
           <div className="p-3 border-b border-slate-800">
             <div className="text-sm font-medium text-white mb-2">Scene Selector</div>
             <div className="flex gap-1 flex-wrap">
-              {sampleScenes.map((s, i) => (
+              {scenes.map((s, i) => (
                 <button
-                  key={s.id}
+                  key={s._id || s.id || i}
                   onClick={() => { setSelectedScene(i); setSelectedShot(0); setCurrentTake(1) }}
                   className={`px-2 py-1 rounded text-xs transition ${
                     selectedScene === i ? 'bg-cinema-500 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
                   }`}
                 >
-                  SC {s.number}
+                  SC {s.number || i + 1}
                 </button>
               ))}
             </div>
@@ -215,9 +239,9 @@ export default function LiveCamera() {
           {/* Shot list */}
           <div className="flex-1 overflow-y-auto">
             <div className="p-2 space-y-1">
-              {scene.shots.map((s, i) => (
+              {(scene.shots || []).map((s, i) => (
                 <button
-                  key={s.id}
+                  key={s._id || s.id || i}
                   onClick={() => { setSelectedShot(i); setCurrentTake(1) }}
                   className={`w-full text-left p-2.5 rounded-lg transition ${
                     selectedShot === i ? 'bg-cinema-500/15 border border-cinema-500/30' : 'hover:bg-slate-800/50 border border-transparent'
