@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { upload, getFileUrl } from '../config/storage.js'
 import { extractText, quickParse } from '../services/scriptParser.js'
-import Project from '../models/Project.js'
+import { getStore } from '../store/index.js'
 import { optionalAuth } from '../middleware/auth.js'
 import path from 'path'
 
@@ -21,7 +21,8 @@ router.post('/', optionalAuth, upload.single('script'), async (req, res, next) =
     const parseResult = quickParse(scriptText)
     parseResult.format = ext.replace('.', '').toUpperCase()
 
-    // Create or update project
+    // Create project (DB or in-memory)
+    const Project = getStore('projects')
     const project = await Project.create({
       name: req.body.name || req.file.originalname.replace(/\.[^.]+$/, ''),
       owner: req.user?.id,
@@ -59,6 +60,7 @@ router.post('/text', optionalAuth, async (req, res, next) => {
     const parseResult = quickParse(text)
     parseResult.format = 'TXT'
 
+    const Project = getStore('projects')
     const project = await Project.create({
       name: name || 'Untitled Script',
       owner: req.user?.id,
