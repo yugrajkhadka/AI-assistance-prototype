@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: cineassist-api
+    runtime: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node src/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3001"
+      - key: MONGODB_URI
+        sync: false  # Set in Render dashboard
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ANTHROPIC_API_KEY
+        sync: false  # Set in Render dashboard
+      - key: CORS_ORIGIN
+        value: https://yugrajkhadka.github.io

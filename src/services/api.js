@@ -1,4 +1,6 @@
-const BASE = '/api'
+// In dev: Vite proxy forwards /api -> localhost:3001, so BASE = '/api'
+// In prod: VITE_API_URL must point to the deployed backend (e.g. https://your-backend.onrender.com/api)
+const BASE = import.meta.env.VITE_API_URL || '/api'
 
 async function request(path, options = {}) {
   const token = localStorage.getItem('cineassist_token')
@@ -6,8 +8,28 @@ async function request(path, options = {}) {
   if (token) headers['Authorization'] = `Bearer ${token}`
   if (!(options.body instanceof FormData)) headers['Content-Type'] = 'application/json'
 
-  const res = await fetch(`${BASE}${path}`, { ...options, headers })
+  let res
+  try {
+    res = await fetch(`${BASE}${path}`, { ...options, headers })
+  } catch (err) {
+    // Network error — backend unreachable
+    throw new Error(
+      'Cannot reach the backend server. Make sure the server is running (cd server && npm start) ' +
+      'or set VITE_API_URL to your deployed backend URL.'
+    )
+  }
+
   if (!res.ok) {
+    // 405 on GitHub Pages means no backend is deployed at this origin
+    if (res.status === 405 || res.status === 404) {
+      const isGitHubPages = window.location.hostname.includes('github.io')
+      if (isGitHubPages) {
+        throw new Error(
+          'No backend server connected. This app requires a running backend. ' +
+          'See the README for deployment instructions.'
+        )
+      }
+    }
     const err = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error(err.error || `Request failed: ${res.status}`)
   }

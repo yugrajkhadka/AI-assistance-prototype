@@ -18,6 +18,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          # Set this to your deployed backend URL when you have one
+          # e.g. https://cineassist-api.onrender.com/api
+          VITE_API_URL: ${{ vars.VITE_API_URL || '' }}
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
         with:
