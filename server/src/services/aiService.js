@@ -8,6 +8,11 @@ const OLLAMA_URL = process.env.LOCAL_LLM_API_URL || 'http://localhost:11434/api/
 const MODEL = process.env.LOCAL_LLM_MODEL || 'llama3'
 const REQUEST_TIMEOUT_MS = Number(process.env.OLLAMA_REQUEST_TIMEOUT_MS || 4000)
 
+const TOKENROUTER_API_KEY = process.env.TOKENROUTER_API_KEY || ''
+const TOKENROUTER_BASE_URL = process.env.TOKENROUTER_BASE_URL || 'https://api.tokenrouter.com/v1'
+const TOKENROUTER_MODEL = process.env.TOKENROUTER_MODEL || 'qwen/qwen3.8-max-free'
+const TOKENROUTER_TIMEOUT_MS = Number(process.env.TOKENROUTER_REQUEST_TIMEOUT_MS || 15000)
+
 function getResponseText(payload) {
   if (typeof payload?.response === 'string') return payload.response
   if (Array.isArray(payload?.response)) {
@@ -67,6 +72,69 @@ async function callLocalLLMText(prompt, maxTokens = 4096, { expectJson = true } 
 
   if (!text) throw new Error(`Local LLM returned no text output from model "${MODEL}"`)
   return text
+}
+
+// ─── TokenRouter (cloud) caller — tried first when configured ────────────────
+async function callTokenRouterText(prompt, maxTokens = 4096, { expectJson = true } = {}) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), TOKENROUTER_TIMEOUT_MS)
+  let response
+  try {
+    response = await fetch(`${TOKENROUTER_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${TOKENROUTER_API_KEY}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: TOKENROUTER_MODEL,
+        messages: [
+          { role: 'system', content: 'You are a cinematography assistant. Respond concisely.' },
+          { role: 'user', content: prompt },
+        ],
+        max_tokens: maxTokens,
+        stream: false,
+        ...(expectJson ? { response_format: { type: 'json_object' } } : {}),
+      }),
+    })
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error.name === 'AbortError') {
+      throw new Error(`TokenRouter timed out after ${Math.round(TOKENROUTER_TIMEOUT_MS / 1000)}s`)
+    }
+    throw new Error(`Could not reach TokenRouter: ${error.message}`)
+  }
+  clearTimeout(timeoutId)
+
+  const rawBody = await response.text()
+  let payload = {}
+  try {
+    payload = rawBody ? JSON.parse(rawBody) : {}
+  } catch {
+    throw new Error(`TokenRouter returned invalid JSON: ${rawBody.slice(0, 200)}`)
+  }
+
+  if (!response.ok) {
+    const errorMessage = payload?.error?.message || payload?.error || `HTTP ${response.status}`
+    throw new Error(`TokenRouter request failed (${response.status}): ${errorMessage}`)
+  }
+
+  const text = payload?.choices?.[0]?.message?.content
+  if (!text) throw new Error('TokenRouter returned no text output')
+  return text
+}
+
+// ─── Combined caller — TokenRouter (Qwen) first, Ollama as fallback ──────────
+async function callLLMText(prompt, maxTokens = 4096, opts = {}) {
+  if (TOKENROUTER_API_KEY) {
+    try {
+      return await callTokenRouterText(prompt, maxTokens, opts)
+    } catch (error) {
+      console.warn('[AI] TokenRouter (Qwen) failed, falling back to Ollama:', error.message)
+    }
+  }
+  return await callLocalLLMText(prompt, maxTokens, opts)
 }
 
 // ─── JSON parser — handles prose preamble and markdown fences ─────────────────
@@ -321,7 +389,7 @@ function buildFallbackCameraSettings(style, mood, cameraOverride = null) {
 export async function analyzeScript(scriptText) {
   const prompt = SCRIPT_BREAKDOWN_PROMPT + scriptText.substring(0, 12000)
   try {
-    const result = await callLocalLLMText(prompt, 2048)
+    const result = await callLLMText(prompt, 2048)
     return parseJSON(result)
   } catch (error) {
     console.warn('[AI] Falling back to local script analysis:', error.message)
@@ -357,7 +425,7 @@ You MUST respond with ONLY this JSON object, no other text:
   "notes": "Specific technical notes for this camera on this production"
 }`
   try {
-    const result = await callLocalLLMText(prompt, 1024)
+    const result = await callLLMText(prompt, 1024)
     return parseJSON(result)
   } catch (error) {
     console.warn('[AI] Falling back to local camera settings:', error.message)
@@ -375,7 +443,7 @@ export async function generateShotList(scene) {
     .replace('{location}', (scene.locations || []).join(', '))
     .replace('{props}', (scene.props || []).join(', '))
   try {
-    const result = await callLocalLLMText(prompt, 1200)
+    const result = await callLLMText(prompt, 1200)
     return normalizeShots(parseJSON(result))
   } catch (error) {
     console.warn('[AI] Falling back to local shot list generation:', error.message)
@@ -397,14 +465,14 @@ export async function getOnSetGuidance(sceneContext, shotPlan, cameraSettings, q
     .replace('{shotPlan}', JSON.stringify(shotPlan))
     .replace('{cameraSettings}', JSON.stringify(cameraSettings))
     .replace('{question}', question)
-  return await callLocalLLMText(prompt, 500, { expectJson: false })
+  return await callLLMText(prompt, 500, { expectJson: false })
 }
 
 export async function checkDeviations(planned, current) {
   const prompt = DEVIATION_CHECK_PROMPT
     .replace('{planned}', JSON.stringify(planned))
     .replace('{current}', JSON.stringify(current))
-  const result = await callLocalLLMText(prompt, 500)
+  const result = await callLLMText(prompt, 500)
   return parseJSON(result)
 }
 

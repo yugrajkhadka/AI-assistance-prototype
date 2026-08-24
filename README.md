@@ -6,7 +6,7 @@ This project now runs locally with:
 
 - a Vite frontend on `http://localhost:5173`
 - an Express backend on `http://localhost:3002`
-- Ollama for local AI inference
+- TokenRouter (cloud, Qwen) as the primary AI provider, with Ollama as a local fallback if it's unset or fails
 - optional MongoDB
 
 If MongoDB is not running, the backend automatically falls back to a local JSON datastore at [server/data/local-store.json](/Users/yugrajkhadka/AI-assistance-prototype/server/data/local-store.json).
@@ -18,7 +18,7 @@ npm install
 cd server && npm install
 ```
 
-## 2. Start Ollama
+## 2. (Optional) Start Ollama for local fallback
 
 Install Ollama, then pull a local model:
 
@@ -26,7 +26,7 @@ Install Ollama, then pull a local model:
 ollama pull llama3
 ```
 
-Make sure Ollama is running locally on `http://localhost:11434`.
+Make sure Ollama is running locally on `http://localhost:11434`. This is only used when TokenRouter is unset or a request to it fails.
 
 ## 3. Configure the backend
 
@@ -34,12 +34,19 @@ The backend reads [server/.env](/Users/yugrajkhadka/AI-assistance-prototype/serv
 
 ```env
 PORT=3002
+
+# Primary AI provider (cloud) — tried first
+TOKENROUTER_API_KEY=your-tokenrouter-api-key
+TOKENROUTER_BASE_URL=https://api.tokenrouter.com/v1
+TOKENROUTER_MODEL=qwen/qwen3.8-max-free
+
+# Local fallback if TokenRouter is unset or fails
 LOCAL_LLM_API_URL=http://localhost:11434/api/generate
 LOCAL_LLM_MODEL=llama3
 OLLAMA_BASE_URL=http://localhost:11434
 ```
 
-MongoDB is optional. If `MONGODB_URI` is unreachable, the server will still start in local storage mode.
+If `TOKENROUTER_API_KEY` is empty, the backend skips straight to Ollama. MongoDB is optional — if `MONGODB_URI` is unreachable, the server will still start in local storage mode.
 
 ## 4. Run the app
 
