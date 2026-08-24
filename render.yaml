@@ -14,7 +14,7 @@ services:
         sync: false  # Set in Render dashboard
       - key: JWT_SECRET
         generateValue: true
-      - key: ANTHROPIC_API_KEY
+      - key: GOOGLE_API_KEY
         sync: false  # Set in Render dashboard
       - key: CORS_ORIGIN
         value: https://yugrajkhadka.github.io

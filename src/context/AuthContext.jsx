@@ -17,6 +17,7 @@ export function AuthProvider({ children }) {
     } else {
       setLoading(false)
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [])
 
   const login = async (email, password) => {

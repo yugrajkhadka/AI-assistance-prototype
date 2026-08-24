@@ -10,9 +10,11 @@ import shotsRoutes from './routes/shots.js'
 import projectRoutes from './routes/projects.js'
 import exportRoutes from './routes/export.js'
 import onsetRoutes from './routes/onset.js'
+import { isDatabaseReady } from './store/localStore.js'
+import { checkOllamaHealth } from './services/ollamaHealth.js'
 
 const app = express()
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT || 3002
 
 // Allow multiple origins: local dev + GitHub Pages + any custom CORS_ORIGIN
 const allowedOrigins = [
@@ -43,7 +45,15 @@ app.use('/api/projects', projectRoutes)
 app.use('/api/export', exportRoutes)
 app.use('/api/onset', onsetRoutes)
 
-app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
+app.get('/api/health', async (req, res) => {
+  const ollama = await checkOllamaHealth()
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    storage: isDatabaseReady() ? 'mongodb' : 'local-file',
+    ollama,
+  })
+})
 
 app.use(errorHandler)
 
@@ -51,6 +61,6 @@ connectDB().then(() => {
   app.listen(PORT, () => console.log(`CineAssist API running on port ${PORT}`))
 }).catch((err) => {
   console.error('Failed to connect to MongoDB:', err.message)
-  console.log('Starting server without database (limited functionality)...')
-  app.listen(PORT, () => console.log(`CineAssist API running on port ${PORT} (no DB)`))
+  console.log('Starting server with local file storage fallback...')
+  app.listen(PORT, () => console.log(`CineAssist API running on port ${PORT} (local storage mode)`))
 })

@@ -3,15 +3,20 @@ import { optionalAuth } from '../middleware/auth.js'
 import Project from '../models/Project.js'
 import Analysis from '../models/Analysis.js'
 import { generateShotListPDF, generateCSV } from '../services/exportService.js'
+import { findAnalysisByProject, findProjectById, isDatabaseReady } from '../store/localStore.js'
 
 const router = Router()
 
 router.get('/:projectId/pdf', optionalAuth, async (req, res, next) => {
   try {
-    const project = await Project.findById(req.params.projectId).lean()
+    const project = isDatabaseReady()
+      ? await Project.findById(req.params.projectId).lean()
+      : await findProjectById(req.params.projectId)
     if (!project) return res.status(404).json({ error: 'Project not found' })
 
-    const analysis = await Analysis.findOne({ project: project._id }).lean()
+    const analysis = isDatabaseReady()
+      ? await Analysis.findOne({ project: project._id }).lean()
+      : await findAnalysisByProject(project._id)
     if (!analysis) return res.status(404).json({ error: 'No analysis available' })
 
     const pdfBuffer = await generateShotListPDF(project, analysis)
@@ -23,10 +28,14 @@ router.get('/:projectId/pdf', optionalAuth, async (req, res, next) => {
 
 router.get('/:projectId/csv', optionalAuth, async (req, res, next) => {
   try {
-    const project = await Project.findById(req.params.projectId).lean()
+    const project = isDatabaseReady()
+      ? await Project.findById(req.params.projectId).lean()
+      : await findProjectById(req.params.projectId)
     if (!project) return res.status(404).json({ error: 'Project not found' })
 
-    const analysis = await Analysis.findOne({ project: project._id }).lean()
+    const analysis = isDatabaseReady()
+      ? await Analysis.findOne({ project: project._id }).lean()
+      : await findAnalysisByProject(project._id)
     if (!analysis) return res.status(404).json({ error: 'No analysis available' })
 
     const csv = generateCSV(analysis)

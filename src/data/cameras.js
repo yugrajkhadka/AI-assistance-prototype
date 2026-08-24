@@ -1,0 +1,64 @@
+// src/data/cameras.js
+export const CAMERA_DATABASE = [
+  // ── SMARTPHONES ──────────────────────────────────────────────────────────────
+  { id: 'iphone15pro', brand: 'Apple', model: 'iPhone 15 Pro Max', tier: 'smartphone', budget: 'ultra-low', priceUSD: 1199, sensor: '1/1.28"', resolution: '4K 60fps / ProRes 4K', codec: 'ProRes 422 HQ / HEVC', dynamicRange: '12 stops', mount: 'Fixed', notes: 'ProRes Log, Action Mode IBIS, best smartphone for serious video', color: 'Log (Apple Log)' },
+  { id: 'samsung_s24u', brand: 'Samsung', model: 'Galaxy S24 Ultra', tier: 'smartphone', budget: 'ultra-low', priceUSD: 1299, sensor: '1/1.3"', resolution: '8K 30fps / 4K 120fps', codec: 'H.265', dynamicRange: '11 stops', mount: 'Fixed', notes: '8K video, 200MP stills, ProVideo mode', color: 'Log' },
+
+  // ── INDIE / MIRRORLESS ───────────────────────────────────────────────────────
+  { id: 'bmpcc4k', brand: 'Blackmagic', model: 'Pocket Cinema Camera 4K', tier: 'indie', budget: 'low', priceUSD: 995, sensor: 'MFT', resolution: '4K DCI / 4K UHD', codec: 'BRAW / ProRes', dynamicRange: '13 stops', mount: 'MFT', notes: 'Best value cinema camera, internal RAW, beloved indie tool', color: 'Blackmagic Design Film Gen 5' },
+  { id: 'bmpcc6kpro', brand: 'Blackmagic', model: 'Pocket Cinema Camera 6K Pro', tier: 'indie', budget: 'low-mid', priceUSD: 2495, sensor: 'Super 35', resolution: '6K / 4K DCI / 2.8K', codec: 'BRAW / ProRes', dynamicRange: '13+ stops', mount: 'EF / L-Mount', notes: 'Built-in ND, full Super 35 sensor, affordable S35 cinema look', color: 'Blackmagic Design Film Gen 5' },
+  { id: 'sony_fx3', brand: 'Sony', model: 'FX3', tier: 'indie', budget: 'low-mid', priceUSD: 3799, sensor: 'Full Frame', resolution: '4K 120fps', codec: 'XAVC S-I / XAVC HS', dynamicRange: '15+ stops', mount: 'Sony E', notes: 'Cinema Line, incredible low light, S-Cinetone, full-frame look', color: 'S-Log3 / S-Cinetone' },
+  { id: 'sony_fx6', brand: 'Sony', model: 'FX6', tier: 'indie', budget: 'mid', priceUSD: 5998, sensor: 'Full Frame', resolution: '4K 120fps / 4K 240fps (Super35 crop)', codec: 'XAVC S-I', dynamicRange: '15+ stops', mount: 'Sony E', notes: 'Professional Cinema Line, phase detect AF, Variable ND built-in', color: 'S-Log3 / S-Cinetone' },
+  { id: 'sony_a7siii', brand: 'Sony', model: 'A7S III', tier: 'indie', budget: 'low-mid', priceUSD: 3499, sensor: 'Full Frame', resolution: '4K 120fps / 12MP stills', codec: 'XAVC S-I / XAVC HS', dynamicRange: '15 stops', mount: 'Sony E', notes: 'Legendary low light king, ISO 12800 clean, hybrid stills/video', color: 'S-Log3' },
+  { id: 'canon_r5c', brand: 'Canon', model: 'EOS R5 C', tier: 'indie', budget: 'mid', priceUSD: 3899, sensor: 'Full Frame', resolution: '8K RAW / 4K 120fps', codec: 'Cinema RAW Light / MP4', dynamicRange: '14+ stops', mount: 'Canon RF', notes: '8K internal RAW, unlimited record time, dual-system hybrid', color: 'Canon Log 3' },
+  { id: 'canon_c70', brand: 'Canon', model: 'Cinema EOS C70', tier: 'indie', budget: 'mid', priceUSD: 4999, sensor: 'Super 35', resolution: '4K 120fps / 2K 180fps', codec: 'Cinema RAW Light / XF-AVC', dynamicRange: '16 stops', mount: 'Canon RF', notes: 'Compact cinema body, dual-pixel AF, Canon cinema color science', color: 'Canon Log 2 / Log 3' },
+  { id: 'nikon_z9', brand: 'Nikon', model: 'Z9', tier: 'indie', budget: 'mid', priceUSD: 5496, sensor: 'Full Frame', resolution: '8K 60fps / 4K 120fps', codec: 'N-RAW / ProRes RAW HQ', dynamicRange: '14 stops', mount: 'Nikon Z', notes: 'Flagship mirrorless, N-RAW internal, professional build', color: 'N-Log' },
+  { id: 'lumix_s5ii', brand: 'Panasonic', model: 'Lumix S5 II', tier: 'indie', budget: 'low', priceUSD: 1997, sensor: 'Full Frame', resolution: '4K 60fps / C4K', codec: 'MOV / V-Log', dynamicRange: '14 stops', mount: 'L-Mount', notes: 'V-Log internal, phase detect AF, great value full-frame', color: 'V-Log' },
+  { id: 'gh6', brand: 'Panasonic', model: 'GH6', tier: 'indie', budget: 'ultra-low', priceUSD: 1997, sensor: 'MFT', resolution: '4K 120fps / 5.7K 60fps', codec: 'ProRes / MOV', dynamicRange: '13 stops', mount: 'MFT', notes: 'Internal ProRes, 4:2:2 10-bit, excellent value indie camera', color: 'V-Log L' },
+  { id: 'fuji_xh2s', brand: 'Fujifilm', model: 'X-H2S', tier: 'indie', budget: 'low-mid', priceUSD: 2499, sensor: 'APS-C', resolution: '6.2K / 4K 120fps', codec: 'ProRes / H.265', dynamicRange: '13 stops', mount: 'Fuji X', notes: 'F-Log2, beautiful Fuji color science, compact and weather sealed', color: 'F-Log2' },
+
+  // ── CINEMA CAMERAS (MID TIER) ─────────────────────────────────────────────
+  { id: 'bmpcc12k', brand: 'Blackmagic', model: 'URSA Mini Pro 12K', tier: 'cinema-mid', budget: 'mid', priceUSD: 9995, sensor: 'Super 35', resolution: '12K / 8K / 4K DCI', codec: 'BRAW', dynamicRange: '14 stops', mount: 'PL / EF / B4', notes: 'Highest resolution cinema camera for the money, BRAW workflow', color: 'Blackmagic Design Film Gen 5' },
+  { id: 'ursa_broadcast', brand: 'Blackmagic', model: 'URSA Broadcast G2', tier: 'cinema-mid', budget: 'mid', priceUSD: 3995, sensor: '2/3"', resolution: '4K', codec: 'BRAW / ProRes', dynamicRange: '13 stops', mount: 'B4', notes: 'Broadcast/ENG camera with cinema codec, B4 broadcast glass', color: 'Blackmagic Design Film' },
+  { id: 'sony_fx9', brand: 'Sony', model: 'FX9', tier: 'cinema-mid', budget: 'mid-high', priceUSD: 10498, sensor: 'Full Frame', resolution: '4K 60fps / 4K 120fps S35', codec: 'XAVC / RAW output', dynamicRange: '15+ stops', mount: 'Sony E / PL adapter', notes: 'Full-frame cinema, Dual-base ISO, variable ND, Sony Cinema Line', color: 'S-Log3' },
+  { id: 'canon_c300iii', brand: 'Canon', model: 'Cinema EOS C300 Mark III', tier: 'cinema-mid', budget: 'high', priceUSD: 10999, sensor: 'Super 35 (Dual Gain Output)', resolution: '4K / 2K', codec: 'Cinema RAW Light / XF-AVC', dynamicRange: '16 stops', mount: 'Canon EF Cinema / PL', notes: 'Industry workhorse, 16 stops DR with DGO sensor, cinema glass', color: 'Canon Log 2' },
+  { id: 'canon_c500ii', brand: 'Canon', model: 'Cinema EOS C500 Mark II', tier: 'cinema-mid', budget: 'high', priceUSD: 15999, sensor: 'Full Frame', resolution: '6K / 4K / 2K', codec: 'Cinema RAW Light / XF-AVC', dynamicRange: '15 stops', mount: 'Canon EF Cinema / PL', notes: 'Full-frame 6K cinema, modular design, S16/S35/FF crop modes', color: 'Canon Log 2 / Log 3' },
+  { id: 'sony_venice2', brand: 'Sony', model: 'VENICE 2 (8.6K)', tier: 'cinema-high', budget: 'premium', priceUSD: 42000, sensor: 'Full Frame 8.6K', resolution: '8.6K / 6K / 4K', codec: 'X-OCN / RAW / XAVC', dynamicRange: '16 stops', mount: 'PL / E (with adapter)', notes: 'Premium Hollywood cinema camera, Dual-base ISO 800/3200, interchangeable sensor', color: 'S-Gamut3.Cine / S-Log3' },
+  { id: 'red_raptor', brand: 'RED', model: 'RAPTOR 8K', tier: 'cinema-high', budget: 'premium', priceUSD: 29500, sensor: 'Full Frame 8K', resolution: '8K / 6K / 4K / 2K', codec: 'REDCODE RAW', dynamicRange: '17 stops', mount: 'PL / EF / LPL', notes: 'Hollywood standard RAW workflow, 17+ stops, modular ecosystem', color: 'REDWideGamutRGB / Log3G10' },
+  { id: 'red_komodo', brand: 'RED', model: 'KOMODO 6K', tier: 'cinema-mid', budget: 'mid-high', priceUSD: 5995, sensor: 'Super 35 6K', resolution: '6K / 4K / 2K', codec: 'REDCODE RAW', dynamicRange: '16 stops', mount: 'Canon RF', notes: 'Compact RED cinema camera, global shutter, RED RAW at indie price', color: 'REDWideGamutRGB / Log3G10' },
+  { id: 'red_monstro', brand: 'RED', model: 'MONSTRO 8K VV', tier: 'cinema-high', budget: 'premium', priceUSD: 79500, sensor: 'VistaVision 8K', resolution: '8K VV / 6K / 4K', codec: 'REDCODE RAW', dynamicRange: '17 stops', mount: 'PL / EF', notes: 'Largest RED sensor, VistaVision format, maximum cinematic scope', color: 'REDWideGamutRGB / Log3G10' },
+
+  // ── ARRI ──────────────────────────────────────────────────────────────────
+  { id: 'arri_alexa35', brand: 'ARRI', model: 'ALEXA 35', tier: 'cinema-high', budget: 'ultra-premium', priceUSD: 86000, sensor: '4.6K ALEV 4 Super 35', resolution: '4K / 3.8K / 2K / Open Gate 4.6K', codec: 'ARRIRAW / ProRes', dynamicRange: '17 stops', mount: 'LPL / PL', notes: 'The industry gold standard. LogC4. Used on Dune, Oppenheimer, The Batman. ALEV 4 sensor is generation-defining', color: 'LogC4 / ARRI Wide Gamut 4' },
+  { id: 'arri_mini_lf', brand: 'ARRI', model: 'ALEXA Mini LF', tier: 'cinema-high', budget: 'ultra-premium', priceUSD: 75000, sensor: 'Large Format 4.5K', resolution: '4.5K / 4K UHD / 2K', codec: 'ARRIRAW / ProRes', dynamicRange: '14+ stops', mount: 'LPL / PL', notes: 'Large format ARRI, compact body. Used on Bond, Marvel. Full LF sensor for cinematic bokeh', color: 'LogC3 / ARRI Wide Gamut 3' },
+  { id: 'arri_amira', brand: 'ARRI', model: 'AMIRA', tier: 'cinema-mid', budget: 'high', priceUSD: 32000, sensor: 'Super 35 3.4K', resolution: '3.4K / 2K / HD', codec: 'ProRes / ARRIRAW (with license)', dynamicRange: '14 stops', mount: 'PL', notes: 'Documentary and indie cinema workhorse, built-in NDs, shoulder mount ergonomics', color: 'LogC / ARRI Wide Gamut' },
+  { id: 'arri_alexa_xt', brand: 'ARRI', model: 'ALEXA XT', tier: 'cinema-high', budget: 'premium', priceUSD: 55000, sensor: 'Super 35 3.4K', resolution: '3.4K / 2K / HD', codec: 'ARRIRAW / ProRes / DNxHD', dynamicRange: '14+ stops', mount: 'PL', notes: 'Still used extensively in TV/film. Proven ARRI color science, extensive ecosystem', color: 'LogC / ARRI Wide Gamut' },
+
+  // ── PANAVISION ────────────────────────────────────────────────────────────
+  { id: 'panavision_dxl2', brand: 'Panavision', model: 'DXL2', tier: 'cinema-high', budget: 'ultra-premium', priceUSD: 100000, sensor: 'Full Frame 8K', resolution: '8K / 4K', codec: 'REDCODE RAW / MXF', dynamicRange: '15+ stops', mount: 'Panavision PV', notes: 'Panavision exclusive rental, full frame 8K, anamorphic optimized, Hollywood A-list productions', color: 'REDWideGamutRGB / Log3G10' },
+
+  // ── SPECIALTY / ACTION ────────────────────────────────────────────────────
+  { id: 'gopro12', brand: 'GoPro', model: 'HERO 12 Black', tier: 'specialty', budget: 'ultra-low', priceUSD: 399, sensor: '1/1.9"', resolution: '5.3K 60fps / 4K 120fps', codec: 'H.265 / GP-Log', dynamicRange: '10 stops', mount: 'Fixed Wide', notes: 'Action/POV camera, HyperSmooth stabilization, Max Lens Mod', color: 'GP-Log' },
+  { id: 'dji_osmo4k', brand: 'DJI', model: 'Osmo Pocket 3', tier: 'specialty', budget: 'ultra-low', priceUSD: 519, sensor: '1"', resolution: '4K 120fps', codec: 'H.265 / D-Log M', dynamicRange: '11 stops', mount: 'Fixed', notes: '1" sensor gimbal camera, D-Log M, excellent for travel/b-roll', color: 'D-Log M' },
+  { id: 'z_cam_e2', brand: 'Z CAM', model: 'E2-S6G', tier: 'indie', budget: 'low-mid', priceUSD: 2999, sensor: 'Super 35 6K', resolution: '6K / 4K', codec: 'ZRAW / ProRes', dynamicRange: '14 stops', mount: 'EF / PL', notes: 'Compact cinema body, interchangeable mounts, livestream capable', color: 'Z-Log2' },
+  { id: 'kinefinity_mavo', brand: 'Kinefinity', model: 'MAVO Edge 6K', tier: 'cinema-mid', budget: 'mid', priceUSD: 7980, sensor: 'Super 35 6K', resolution: '6K / 4K / 3K', codec: 'KRW RAW / ProRes', dynamicRange: '14 stops', mount: 'KineMOUNT (EF/PL/E adapter)', notes: 'Chinese cinema camera with global shutter option, growing Hollywood adoption', color: 'KineColor 3' },
+]
+
+export const BUDGET_TIERS = [
+  { id: 'ultra-low', label: 'Ultra Low Budget', range: 'Under $2K', description: 'Student / Self-funded shorts', color: 'green' },
+  { id: 'low', label: 'Low Budget', range: '$2K – $10K', description: 'Indie shorts / Web series', color: 'emerald' },
+  { id: 'low-mid', label: 'Low-Mid Budget', range: '$10K – $50K', description: 'Indie features / Commercials', color: 'cyan' },
+  { id: 'mid', label: 'Mid Budget', range: '$50K – $500K', description: 'TV episodes / Mid-tier features', color: 'blue' },
+  { id: 'mid-high', label: 'Mid-High Budget', range: '$500K – $2M', description: 'Premium TV / Ambitious indie', color: 'violet' },
+  { id: 'high', label: 'High Budget', range: '$2M – $10M', description: 'Studio features / High-end TV', color: 'purple' },
+  { id: 'premium', label: 'Premium', range: '$10M – $50M', description: 'Hollywood features', color: 'amber' },
+  { id: 'ultra-premium', label: 'Ultra Premium', range: '$50M+', description: 'Blockbuster / Award circuit', color: 'orange' },
+]
+
+export const TIERS = [
+  { id: 'smartphone', label: 'Smartphone' },
+  { id: 'specialty', label: 'Specialty / Action' },
+  { id: 'indie', label: 'Indie / Mirrorless' },
+  { id: 'cinema-mid', label: 'Cinema (Mid)' },
+  { id: 'cinema-high', label: 'Cinema (High End)' },
+]

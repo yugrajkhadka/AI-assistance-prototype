@@ -1,4 +1,4 @@
-// In dev: Vite proxy forwards /api -> localhost:3001, so BASE = '/api'
+// In dev: Vite proxy forwards /api -> localhost:3002, so BASE = '/api'
 // In prod: VITE_API_URL must point to the deployed backend (e.g. https://your-backend.onrender.com/api)
 const BASE = import.meta.env.VITE_API_URL || '/api'
 
@@ -11,7 +11,7 @@ async function request(path, options = {}) {
   let res
   try {
     res = await fetch(`${BASE}${path}`, { ...options, headers })
-  } catch (err) {
+  } catch {
     // Network error — backend unreachable
     throw new Error(
       'Cannot reach the backend server. Make sure the server is running (cd server && npm start) ' +
@@ -54,11 +54,19 @@ export const upload = {
 
 // Analysis
 export const analysis = {
-  run: (projectId) => request(`/analysis/${projectId}`, { method: 'POST' }),
+  run: (projectId, cameraPrefs) => request(`/analysis/${projectId}`, {
+    method: 'POST',
+    body: JSON.stringify({ cameraPrefs }),
+  }),
   get: (projectId) => request(`/analysis/${projectId}`),
-  runScene: (projectId, sceneIndex) => request(`/analysis/${projectId}/scene/${sceneIndex}`, { method: 'POST' }),
+  runScene: (projectId, sceneIndex) => request(`/analysis/${projectId}/scene/${sceneIndex}`, {
+    method: 'POST',
+  }),
+  refineScene: (projectId, sceneIndex, instruction) => request(`/analysis/${projectId}/scene/${sceneIndex}/refine`, {
+    method: 'POST',
+    body: JSON.stringify({ instruction }),
+  }),
 }
-
 // Shots
 export const shots = {
   updateStatus: (projectId, sceneIndex, shotId, data) =>
@@ -86,6 +94,8 @@ export const onset = {
     request(`/onset/${projectId}/scene/${sceneIndex}/shot/${shotId}/complete`, { method: 'POST', body: JSON.stringify(data || {}) }),
   chat: (projectId, question, sceneIndex) =>
     request(`/onset/${projectId}/chat`, { method: 'POST', body: JSON.stringify({ question, sceneIndex }) }),
+  updateCameraSettings: (projectId, data) =>
+    request(`/onset/${projectId}/camera-settings`, { method: 'PATCH', body: JSON.stringify(data) }),
   addNote: (projectId, sceneIndex, shotId, text) =>
     request(`/onset/${projectId}/scene/${sceneIndex}/shot/${shotId}/note`, { method: 'POST', body: JSON.stringify({ text }) }),
 }

@@ -2,10 +2,13 @@ import { useState, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Upload, FileText, Cloud, Type, Shield, Globe, CheckCircle2,
-  AlertCircle, Loader2, Film, Clock, Hash, X, RefreshCw, HardDrive
+  AlertCircle, Loader2, Film, Clock, Hash, X, RefreshCw, HardDrive,
+  Camera as CameraIcon
 } from 'lucide-react'
 import { upload as uploadApi } from '../../services/api'
 import { useProject } from '../../context/ProjectContext'
+import CameraPackageSelector from '../../components/camera/CameraPackageSelector'
+import { getSelectedCamera, saveCameraPrefs } from '../../services/cameraPrefs'
 
 const formatFileSize = (bytes) => {
   if (bytes < 1024) return `${bytes} B`
@@ -30,6 +33,7 @@ export default function ScriptUpload() {
     privacy: 'private',
     format: 'auto-detect',
   })
+  const [selectedCamera, setSelectedCamera] = useState(getSelectedCamera())
 
   const handleDrag = useCallback((e) => {
     e.preventDefault()
@@ -74,6 +78,7 @@ export default function ScriptUpload() {
       formData.append('script', selectedFile)
       formData.append('language', settings.language)
       formData.append('privacy', settings.privacy)
+      if (selectedCamera) formData.append('cameraPackage', JSON.stringify(selectedCamera))
 
       // Simulate progress since fetch doesn't support upload progress natively
       const progressInterval = setInterval(() => {
@@ -89,7 +94,7 @@ export default function ScriptUpload() {
       clearInterval(progressInterval)
       setUploadProgress(100)
 
-      setProjectFromUpload({ _id: result.projectId, name: result.file.name, ...result.parseResult })
+      setProjectFromUpload({ _id: result.projectId, name: result.file.name, cameraPackage: selectedCamera, ...result.parseResult })
       setUploadedFile({
         name: result.file.name,
         size: result.file.size,
@@ -110,7 +115,7 @@ export default function ScriptUpload() {
     setDragActive(false)
     const file = e.dataTransfer?.files?.[0]
     if (file) selectFile(file)
-  }, [settings])
+  }, [selectFile])
 
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0]
@@ -139,12 +144,13 @@ export default function ScriptUpload() {
         name: 'Pasted Script',
         language: settings.language,
         privacy: settings.privacy,
+        cameraPackage: selectedCamera,
       })
 
       clearInterval(progressInterval)
       setUploadProgress(100)
 
-      setProjectFromUpload({ _id: result.projectId, name: result.file.name, ...result.parseResult })
+      setProjectFromUpload({ _id: result.projectId, name: result.file.name, cameraPackage: selectedCamera, ...result.parseResult })
       setUploadedFile({
         name: result.file.name,
         ...result.parseResult,
@@ -167,6 +173,11 @@ export default function ScriptUpload() {
     setUploadError(null)
     setUploadProgress(0)
     setPasteMode(false)
+  }
+
+  const handleSelectCamera = (camera) => {
+    setSelectedCamera(camera)
+    saveCameraPrefs({ camera, budget: camera?.budget || '' })
   }
 
   return (
@@ -194,8 +205,9 @@ export default function ScriptUpload() {
               <div className="text-xs text-slate-400 space-y-1">
                 <div className="font-medium text-slate-300">To fix this:</div>
                 <div>1. Start the backend: <code className="px-1.5 py-0.5 rounded bg-slate-900 text-cinema-400">cd server && npm install && npm start</code></div>
-                <div>2. Make sure MongoDB is running locally, or set <code className="px-1.5 py-0.5 rounded bg-slate-900 text-cinema-400">MONGODB_URI</code> in <code className="px-1.5 py-0.5 rounded bg-slate-900 text-cinema-400">server/.env</code></div>
-                <div>3. The frontend dev server proxies <code className="px-1.5 py-0.5 rounded bg-slate-900 text-cinema-400">/api</code> to <code className="px-1.5 py-0.5 rounded bg-slate-900 text-cinema-400">localhost:3001</code> automatically</div>
+                <div>2. Start Ollama locally and pull your model: <code className="px-1.5 py-0.5 rounded bg-slate-900 text-cinema-400">ollama pull llama3</code></div>
+                <div>3. MongoDB is optional now; if it is unavailable the server will use local file storage automatically</div>
+                <div>4. The frontend dev server proxies <code className="px-1.5 py-0.5 rounded bg-slate-900 text-cinema-400">/api</code> to <code className="px-1.5 py-0.5 rounded bg-slate-900 text-cinema-400">localhost:3002</code> automatically</div>
               </div>
             </div>
           ) : null}
@@ -276,6 +288,16 @@ export default function ScriptUpload() {
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="mt-6">
+            <CameraPackageSelector
+              compact
+              value={selectedCamera}
+              onChange={handleSelectCamera}
+              title="Camera Before Analysis"
+              subtitle="Pick your camera package now so the first analysis pass builds around a real sensor, codec, and lens ecosystem."
+            />
           </div>
         </>
       )}
@@ -417,6 +439,7 @@ Elena wakes to the sound of rain. She reaches for the photo on her nightstand.
                 { icon: Film, label: 'Scenes', value: uploadedFile.scenes },
                 { icon: Clock, label: 'Runtime', value: uploadedFile.runtime },
                 { icon: Hash, label: 'Pages', value: uploadedFile.pages },
+              // eslint-disable-next-line no-unused-vars
               ].map(({ icon: Icon, label, value }) => (
                 <div key={label} className="p-3 rounded-lg bg-slate-800/50 border border-slate-700/50 text-center">
                   <Icon className="w-5 h-5 text-cinema-400 mx-auto mb-1" />

@@ -16,6 +16,7 @@ const shotSchema = new mongoose.Schema({
   lighting: String,
   duration: String,
   status: { type: String, enum: ['approved', 'pending', 'revision'], default: 'pending' },
+  locked: { type: Boolean, default: false },
   confidence: Number,
   intent: { type: String, enum: ['establish', 'detail', 'character', 'emotion', 'dialogue', 'thematic'] },
   completedOnSet: { type: Boolean, default: false },
@@ -52,6 +53,23 @@ const sceneSchema = new mongoose.Schema({
   },
 })
 
+const cameraSettingsSchema = new mongoose.Schema({
+  exposure: { value: String, min: String, max: String },
+  iso: { value: Number, min: Number, max: Number },
+  shutter: { value: String, angle: String },
+  whiteBalance: { value: String, mode: String },
+  nd: { value: String, stops: Number },
+  lens: new mongoose.Schema({
+    focal: String,
+    type: String,
+    mount: String,
+    tStop: String,
+  }, { _id: false }),
+  resolution: String,
+  frameRate: String,
+  codec: String,
+}, { _id: false })
+
 const analysisSchema = new mongoose.Schema({
   project: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: true, index: true },
   themes: [String],
@@ -73,17 +91,7 @@ const analysisSchema = new mongoose.Schema({
     note: String,
   }],
   scenes: [sceneSchema],
-  cameraSettings: {
-    exposure: { value: String, min: String, max: String },
-    iso: { value: Number, min: Number, max: Number },
-    shutter: { value: String, angle: String },
-    whiteBalance: { value: String, mode: String },
-    nd: { value: String, stops: Number },
-    lens: { focal: String, type: String, mount: String, tStop: String },
-    resolution: String,
-    frameRate: String,
-    codec: String,
-  },
+  cameraSettings: cameraSettingsSchema,
   approvalLog: [{
     user: String,
     role: String,

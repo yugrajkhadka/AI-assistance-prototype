@@ -4,8 +4,19 @@ import { extractText, quickParse } from '../services/scriptParser.js'
 import Project from '../models/Project.js'
 import { optionalAuth } from '../middleware/auth.js'
 import path from 'path'
+import { createProject, isDatabaseReady } from '../store/localStore.js'
 
 const router = Router()
+
+function parseCameraPackage(value) {
+  if (!value) return null
+  if (typeof value === 'object') return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
 
 router.post('/', optionalAuth, upload.single('script'), async (req, res, next) => {
   try {
@@ -22,7 +33,7 @@ router.post('/', optionalAuth, upload.single('script'), async (req, res, next) =
     parseResult.format = ext.replace('.', '').toUpperCase()
 
     // Create or update project
-    const project = await Project.create({
+    const projectPayload = {
       name: req.body.name || req.file.originalname.replace(/\.[^.]+$/, ''),
       owner: req.user?.id,
       scriptFile: {
@@ -34,9 +45,14 @@ router.post('/', optionalAuth, upload.single('script'), async (req, res, next) =
       },
       scriptText,
       parseResult,
+      cameraPackage: parseCameraPackage(req.body.cameraPackage),
       language: req.body.language || 'English',
       privacy: req.body.privacy || 'private',
-    })
+    }
+
+    const project = isDatabaseReady()
+      ? await Project.create(projectPayload)
+      : await createProject(projectPayload)
 
     res.status(201).json({
       projectId: project._id,
@@ -53,20 +69,25 @@ router.post('/', optionalAuth, upload.single('script'), async (req, res, next) =
 // Upload via paste text
 router.post('/text', optionalAuth, async (req, res, next) => {
   try {
-    const { text, name, language, privacy } = req.body
+    const { text, name, language, privacy, cameraPackage } = req.body
     if (!text?.trim()) return res.status(400).json({ error: 'No text provided' })
 
     const parseResult = quickParse(text)
     parseResult.format = 'TXT'
 
-    const project = await Project.create({
+    const projectPayload = {
       name: name || 'Untitled Script',
       owner: req.user?.id,
       scriptText: text,
       parseResult,
+      cameraPackage: parseCameraPackage(cameraPackage),
       language: language || 'English',
       privacy: privacy || 'private',
-    })
+    }
+
+    const project = isDatabaseReady()
+      ? await Project.create(projectPayload)
+      : await createProject(projectPayload)
 
     res.status(201).json({
       projectId: project._id,

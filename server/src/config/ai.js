@@ -1,12 +1,10 @@
-import Anthropic from '@anthropic-ai/sdk'
-
-let client = null
-
-export function getAIClient() {
-  if (!client) {
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set')
-    client = new Anthropic({ apiKey })
+export function getGoogleApiKey() {
+  const apiKey = process.env.GOOGLE_API_KEY?.trim()
+  if (!apiKey || apiKey === 'your-google-api-key') {
+    throw new Error(
+      'GOOGLE_API_KEY is not set or is still the placeholder value. ' +
+      'Set a valid Google Generative Language API key in server/.env or in your production environment variables.'
+    )
   }
-  return client
+  return apiKey
 }

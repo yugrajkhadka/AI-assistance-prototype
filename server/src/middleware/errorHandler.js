@@ -1,4 +1,4 @@
-export function errorHandler(err, req, res, next) {
+export function errorHandler(err, req, res) {
   console.error(`[ERROR] ${req.method} ${req.path}:`, err.message)
 
   if (err.name === 'ValidationError') {

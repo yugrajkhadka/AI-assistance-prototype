@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   List, Image, Sun, Camera, Maximize, Move, ChevronRight, ChevronDown,
@@ -33,24 +33,43 @@ const intentColors = {
 
 const storyboardStyles = ['Cinematic', 'Sketch', 'Noir', 'Anime', 'Photorealistic']
 
-const compositionRules = [
-  { name: 'Rule of Thirds', desc: 'Subject placed at power points for natural visual tension', active: true },
-  { name: 'Leading Lines', desc: 'Environmental lines draw eye toward subject', active: true },
-  { name: 'Depth Layering', desc: 'Foreground, midground, background separation', active: false },
-  { name: 'Frame Within Frame', desc: 'Doorways, windows, arches as nested frames', active: true },
-  { name: 'Negative Space', desc: 'Intentional emptiness to convey isolation or vastness', active: false },
-]
-
 export default function GeneratedOutputs() {
   const navigate = useNavigate()
-  const { currentProject, analysisData } = useProject()
+  const { currentProject, analysisData, setAnalysisData } = useProject()
   const [activeTab, setActiveTab] = useState('shots')
   const [selectedScene, setSelectedScene] = useState(0)
   const [storyboardStyle, setStoryboardStyle] = useState('Cinematic')
   const [expandedShot, setExpandedShot] = useState(null)
+  const [noteDrafts, setNoteDrafts] = useState({})
 
   const scenes = analysisData?.scenes || []
   const scene = scenes[selectedScene]
+  const compositionRules = useMemo(() => {
+    if (!scene) return []
+    const lead = scene.characters?.[0] || 'the lead'
+    return [
+      {
+        name: 'Power-Point Anchor',
+        desc: `Keep ${lead} riding the left or right third so the frame breathes and the environment carries pressure around them.`,
+        active: true,
+      },
+      {
+        name: 'Practical-Motivated Depth',
+        desc: `Use practicals and doorway depth in ${scene.locations?.[0] || 'the set'} so the frame feels like a real room rather than coverage floating in space.`,
+        active: true,
+      },
+      {
+        name: 'Compression Shift',
+        desc: 'Let longer focal lengths arrive only when the emotional beat tightens, so the visual grammar escalates with the scene.',
+        active: (scene.shots || []).some((shot) => shot.lens?.includes('85') || shot.lens?.includes('100')),
+      },
+      {
+        name: 'Foreground Occlusion',
+        desc: 'Introduce furniture, shoulders, or practicals in foreground whenever the scene benefits from surveillance, intimacy, or tension.',
+        active: (scene.characters || []).length > 1,
+      },
+    ]
+  }, [scene])
 
   if (!analysisData || scenes.length === 0) {
     return (
@@ -66,8 +85,27 @@ export default function GeneratedOutputs() {
   const handleApproveShot = async (shotId) => {
     if (!currentProject?._id) return
     try {
-      await shotsApi.updateStatus(currentProject._id, selectedScene, shotId, { status: 'approved' })
+      const updatedShot = await shotsApi.updateStatus(currentProject._id, selectedScene, shotId, { status: 'approved' })
+      setAnalysisData({
+        ...analysisData,
+        scenes: analysisData.scenes.map((item, index) => index !== selectedScene
+          ? item
+          : { ...item, shots: item.shots.map((shot) => ((shot._id || shot.id) === (updatedShot._id || updatedShot.id) ? updatedShot : shot)) }),
+      })
     } catch { /* handle */ }
+  }
+
+  const handleNote = async (shotId) => {
+    const text = noteDrafts[shotId]?.trim()
+    if (!text || !currentProject?._id) return
+    const updatedShot = await shotsApi.updateStatus(currentProject._id, selectedScene, shotId, { notes: text })
+    setAnalysisData({
+      ...analysisData,
+      scenes: analysisData.scenes.map((item, index) => index !== selectedScene
+        ? item
+        : { ...item, shots: item.shots.map((shot) => ((shot._id || shot.id) === shotId ? updatedShot : shot)) }),
+    })
+    setNoteDrafts((current) => ({ ...current, [shotId]: '' }))
   }
 
   return (
@@ -181,15 +219,23 @@ export default function GeneratedOutputs() {
                     <button onClick={() => handleApproveShot(shot._id || shot.id)} className="p-1.5 rounded hover:bg-slate-700 text-slate-500 hover:text-white transition" title="Accept">
                       <Check className="w-3.5 h-3.5" />
                     </button>
-                    <button className="p-1.5 rounded hover:bg-slate-700 text-slate-500 hover:text-white transition" title="Edit">
+                    <button onClick={() => navigate('/pre-production/review')} className="p-1.5 rounded hover:bg-slate-700 text-slate-500 hover:text-white transition" title="Edit">
                       <Edit3 className="w-3.5 h-3.5" />
                     </button>
-                    <button className="p-1.5 rounded hover:bg-slate-700 text-slate-500 hover:text-white transition" title="Comment">
+                    <button onClick={() => handleNote(shot._id || shot.id)} className="p-1.5 rounded hover:bg-slate-700 text-slate-500 hover:text-white transition" title="Comment">
                       <MessageSquare className="w-3.5 h-3.5" />
                     </button>
                     <button className="p-1.5 rounded hover:bg-slate-700 text-slate-500 hover:text-white transition" title="Pin to Timeline">
                       <Pin className="w-3.5 h-3.5" />
                     </button>
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      value={noteDrafts[shot._id || shot.id] || ''}
+                      onChange={(event) => setNoteDrafts((current) => ({ ...current, [shot._id || shot.id]: event.target.value }))}
+                      placeholder="Add practical note for this shot"
+                      className="flex-1 bg-slate-800/50 border border-slate-700 rounded-md px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-cinema-500"
+                    />
                   </div>
                 </div>
               )}
@@ -233,7 +279,7 @@ export default function GeneratedOutputs() {
                     <div className="text-center z-10">
                       <Camera className="w-8 h-8 text-slate-600 mx-auto mb-2" />
                       <div className="text-xs text-slate-500">{shot?.type} — {shot?.lens}</div>
-                      <div className="text-xs text-slate-600 mt-1">{storyboardStyle} style</div>
+                      <div className="text-xs text-slate-600 mt-1">{storyboardStyle} style · grounded previs</div>
                     </div>
                     <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/50 text-xs text-white font-mono">
                       {i + 1}/{scene.storyboard?.length || 0}
@@ -249,12 +295,12 @@ export default function GeneratedOutputs() {
                       </div>
                     </div>
                   </div>
-                  <div className="p-3">
-                    <div className="text-sm text-white">{frame.caption}</div>
-                    <div className="text-xs text-slate-500 mt-1">{shot?.movement} &middot; {shot?.angle}</div>
-                  </div>
+                <div className="p-3">
+                  <div className="text-sm text-white">{frame.caption}</div>
+                  <div className="text-xs text-slate-500 mt-1">{shot?.movement} &middot; {shot?.angle}</div>
                 </div>
-              )
+              </div>
+            )
             })}
           </div>
         </div>
@@ -446,9 +492,14 @@ export default function GeneratedOutputs() {
 
           {/* Depth Cues */}
           <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/40">
-            <div className="text-sm font-medium text-white mb-3">Depth Cues</div>
+            <div className="text-sm font-medium text-white mb-3">Real-World Composition Notes</div>
             <div className="flex gap-3">
-              {['Foreground Elements', 'Shallow DOF Separation', 'Atmospheric Haze', 'Practical Light Layers'].map((cue) => (
+              {[
+                'Leave room for actor movement past furniture or door frames',
+                'Keep at least one editorial cutaway when blocking becomes messy',
+                'Protect eyelines before reaching for more camera movement',
+                'Use practicals to motivate shape, not just as background decoration'
+              ].map((cue) => (
                 <div key={cue} className="flex-1 p-3 rounded-lg bg-slate-800/50 text-center">
                   <div className="text-xs text-slate-300">{cue}</div>
                 </div>
