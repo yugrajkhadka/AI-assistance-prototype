@@ -1,5 +1,7 @@
 # CineAssist Local Setup
 
+![CineAssist AI screenshot](docs/screenshot.png)
+
 This project now runs locally with:
 
 - a Vite frontend on `http://localhost:5173`
