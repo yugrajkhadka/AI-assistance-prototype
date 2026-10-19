@@ -5,8 +5,17 @@
     <link rel="icon" type="image/svg+xml" href="/AI-assistance-prototype/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>CineAssist AI — Cinematography System</title>
-    <script type="module" crossorigin src="/AI-assistance-prototype/assets/index-_9-AuXIu.js"></script>
-    <link rel="stylesheet" crossorigin href="/AI-assistance-prototype/assets/index-lbAn9bVb.css">
+    <script>
+      // Set the theme before CSS paints, so a light-theme user never sees a dark flash.
+      try {
+        var a = JSON.parse(localStorage.getItem('cineassist_appearance') || '{}')
+        var t = a.theme === 'auto' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : (a.theme || 'dark')
+        document.documentElement.dataset.theme = t
+        if (a.highContrast) document.documentElement.dataset.contrast = 'high'
+      } catch (e) { document.documentElement.dataset.theme = 'dark' }
+    </script>
+    <script type="module" crossorigin src="/AI-assistance-prototype/assets/index-PgDup1mI.js"></script>
+    <link rel="stylesheet" crossorigin href="/AI-assistance-prototype/assets/index-Dd-3Rq-A.css">
   </head>
   <body>
     <div id="root"></div>
