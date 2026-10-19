@@ -66,6 +66,14 @@ export const analysis = {
     method: 'POST',
     body: JSON.stringify({ instruction }),
   }),
+  // Background job drawing every missing storyboard panel, and its progress.
+  drawAllSketches: (projectId) => request(`/analysis/${projectId}/storyboard/draw-all`, { method: 'POST', body: '{}' }),
+  sketchStatus: (projectId) => request(`/analysis/${projectId}/storyboard/status`),
+  // Claude draws one storyboard panel; force redraws an existing one.
+  sketchShot: (projectId, sceneIndex, shotIndex, force = false) => request(`/analysis/${projectId}/scene/${sceneIndex}/storyboard/${shotIndex}/sketch`, {
+    method: 'POST',
+    body: JSON.stringify({ force }),
+  }),
 }
 // Shots
 export const shots = {
@@ -98,10 +106,16 @@ export const onset = {
     request(`/onset/${projectId}/camera-settings`, { method: 'PATCH', body: JSON.stringify(data) }),
   addNote: (projectId, sceneIndex, shotId, text) =>
     request(`/onset/${projectId}/scene/${sceneIndex}/shot/${shotId}/note`, { method: 'POST', body: JSON.stringify({ text }) }),
+  // Claude compares a live frame (+ planned storyboard panel) against the pre-production plan.
+  visualCheck: (projectId, data) =>
+    request(`/onset/${projectId}/visual-check`, { method: 'POST', body: JSON.stringify(data) }),
 }
 
 // Export
 export const exportApi = {
   pdf: (projectId) => request(`/export/${projectId}/pdf`),
+  // Full report rendered by the server's Chrome from the /report page.
+  reportPdf: (projectId, { orientation = 'landscape', theme = 'dark' } = {}) =>
+    request(`/export/${projectId}/report.pdf?orientation=${orientation}&theme=${theme}`),
   csv: (projectId) => request(`/export/${projectId}/csv`),
 }

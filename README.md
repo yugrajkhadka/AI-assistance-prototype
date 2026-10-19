@@ -9,13 +9,15 @@ This project now runs locally with:
 - TokenRouter (cloud, Qwen) as the primary AI provider, with Ollama as a local fallback if it's unset or fails
 - optional MongoDB
 
-If MongoDB is not running, the backend automatically falls back to a local JSON datastore at [server/data/local-store.json](/Users/yugrajkhadka/AI-assistance-prototype/server/data/local-store.json).
+If MongoDB is not running, the backend automatically falls back to a local JSON datastore at `server/data/local-store.json`.
 
-## 1. Install dependencies
+## 1. Clone and install dependencies
 
 ```bash
+git clone https://github.com/yugrajkhadka/AI-assistance-prototype.git
+cd AI-assistance-prototype
 npm install
-cd server && npm install
+cd server && npm install && cd ..
 ```
 
 ## 2. (Optional) Start Ollama for local fallback
@@ -30,7 +32,13 @@ Make sure Ollama is running locally on `http://localhost:11434`. This is only us
 
 ## 3. Configure the backend
 
-The backend reads [server/.env](/Users/yugrajkhadka/AI-assistance-prototype/server/.env). The important local settings are:
+The backend reads `server/.env`, which is not committed. Create it from the template and add your own API keys:
+
+```bash
+cp server/.env.example server/.env
+```
+
+Never commit `server/.env`. It is already listed in `.gitignore`. The important local settings are:
 
 ```env
 PORT=3002
@@ -76,6 +84,17 @@ You can also check backend status at [http://localhost:3002/api/health](http://l
 - whether storage is using MongoDB or the local file fallback
 - whether Ollama is reachable
 - which Ollama models are available
+
+## Optional: C++ on-set engine
+
+The `cineassist-core/` folder builds with CMake:
+
+```bash
+cmake -S cineassist-core -B cineassist-core/build
+cmake --build cineassist-core/build
+```
+
+The Sony camera backend needs Sony's Camera Remote SDK, which is proprietary and not in this repo. Download it from Sony and pass `-DCINEASSIST_SONY_SDK_DIR=/path/to/sdk`. Without it, the build skips the Sony backend and uses the simulated camera.
 
 ## Notes
 

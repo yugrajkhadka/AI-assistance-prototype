@@ -25,3 +25,19 @@ server/data/
 *.njsproj
 *.sln
 *.sw?
+
+# C++ on-set engine build output
+cineassist-core/build/
+cineassist-core/build_test_session.json*
+
+# Secrets (never commit real keys; copy server/.env.example instead)
+.env.*
+!.env.example
+**/.env
+
+# Proprietary Sony Camera Remote SDK (download separately from Sony)
+CrSDK_*/
+CrSDK_*.zip
+
+# Local tool state
+.kilo/

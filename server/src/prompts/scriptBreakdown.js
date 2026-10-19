@@ -8,6 +8,8 @@ INSTRUCTIONS:
 - Identify visual themes, color palette suggestions, and tonal references
 - Flag ambiguities that need directorial decisions before prep
 - Estimate durations based on page count and action/dialogue density (1 page ≈ 1 min)
+- Recommend the CREATIVE TARGETS (overall mood + visual style) this script calls for, with 3 credible alternatives for each
+- Recommend PRODUCTION CONSTRAINTS from what the script demands: budget tier (Low|Medium|High|Unlimited) and timeline (Tight|Standard|Relaxed), with estimated shoot days and the concrete script elements driving cost and schedule (night exteriors, rain/weather FX, crowds, vehicles, stunts, VFX, period setting, number of locations, child/animal performers, etc.)
 
 You MUST respond with ONLY this JSON object, no other text:
 {
@@ -15,6 +17,20 @@ You MUST respond with ONLY this JSON object, no other text:
   "overallMood": "specific mood description",
   "suggestedStyle": "visual style with film references e.g. Desaturated like Fincher's Se7en",
   "confidenceScore": 85,
+  "creativeTargets": {
+    "mood": "Melancholy",
+    "moodOptions": ["Melancholy", "Contemplative", "Bittersweet", "Tense"],
+    "style": "Naturalistic",
+    "styleOptions": ["Naturalistic", "Stylized neon-noir", "Observational documentary", "Classical"],
+    "rationale": "One or two sentences on why this mood and style fit the script"
+  },
+  "productionConstraints": {
+    "budget": "Low|Medium|High|Unlimited",
+    "timeline": "Tight|Standard|Relaxed",
+    "estimatedShootDays": 4,
+    "drivers": ["2 night exteriors", "Rain FX on windows", "Crowd of 30+ extras"],
+    "rationale": "One or two sentences on what drives budget and schedule"
+  },
   "sceneBreakdown": { "total": 3, "analyzed": 3, "flagged": 1 },
   "characterArcs": [
     { "name": "Character Name", "archetype": "The Reluctant Hero", "screenTime": "60%" }

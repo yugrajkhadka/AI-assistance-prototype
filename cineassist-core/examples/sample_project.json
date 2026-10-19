@@ -1,0 +1,69 @@
+{
+  "project": { "_id": "proj-001", "name": "The Last Frame" },
+  "analysis": {
+    "scenes": [
+      {
+        "number": 1,
+        "title": "INT. APARTMENT - MORNING",
+        "description": "Elena wakes to the sound of rain. She reaches for the photo on her nightstand.",
+        "mood": "Melancholy",
+        "style": "Naturalistic",
+        "duration": "2:30",
+        "characters": ["Elena"],
+        "locations": ["Elena's Apartment"],
+        "props": ["Photo frame", "Alarm clock", "Rain-streaked window"],
+        "shots": [
+          { "id": "sh-001", "type": "Wide", "description": "Establishing — bedroom in grey morning light", "lens": "24mm", "movement": "Static", "angle": "Eye Level", "lighting": "Soft diffused window light, practicals off", "duration": "8s", "status": "approved", "confidence": 94, "intent": "establish" },
+          { "id": "sh-002", "type": "Close-Up", "description": "Elena's hand reaching for the photo frame", "lens": "85mm", "movement": "Slight push-in", "angle": "High", "lighting": "Key from window, fill bounce", "duration": "4s", "status": "pending", "confidence": 88, "intent": "detail" },
+          { "id": "sh-003", "type": "Medium", "description": "Elena sits up, looks out the window", "lens": "50mm", "movement": "Pan with subject", "angle": "Eye Level", "lighting": "Window backlight, soft fill", "duration": "6s", "status": "pending", "confidence": 91, "intent": "character" },
+          { "id": "sh-004", "type": "Insert", "description": "Photo frame — young couple at the beach", "lens": "100mm Macro", "movement": "Static", "angle": "Top Down", "lighting": "Practical lamp, warm tone", "duration": "3s", "status": "revision", "confidence": 76, "intent": "detail" }
+        ],
+        "lightingPlan": {
+          "keyLight": { "type": "Window (natural)", "position": "Camera Left", "intensity": 70, "color": "5600K" },
+          "fillLight": { "type": "Bounce board", "position": "Camera Right", "intensity": 30, "color": "5600K" },
+          "backLight": { "type": "None", "position": "-", "intensity": 0, "color": "-" },
+          "practicals": ["Bedside lamp (warm, 2700K, dimmed)"],
+          "ratio": "3:1 key-to-fill",
+          "notes": "Allow natural variation. No hard shadows on face."
+        }
+      },
+      {
+        "number": 2,
+        "title": "EXT. CITY STREET - DAY",
+        "description": "Elena walks through the bustling city, lost in thought. The crowd flows around her.",
+        "mood": "Isolation in crowd",
+        "style": "Handheld realism",
+        "duration": "3:15",
+        "characters": ["Elena", "Extras"],
+        "locations": ["Downtown Street"],
+        "props": ["Coffee cup", "Headphones"],
+        "shots": [
+          { "id": "sh-005", "type": "Wide", "description": "Tracking — Elena moves through the crowd", "lens": "35mm", "movement": "Steadicam follow", "angle": "Eye Level", "lighting": "Natural daylight, overcast", "duration": "12s", "status": "pending", "confidence": 92, "intent": "establish" },
+          { "id": "sh-006", "type": "Medium Close-Up", "description": "Elena's face — distant expression", "lens": "85mm", "movement": "Handheld subtle", "angle": "Eye Level", "lighting": "Overcast soft key", "duration": "5s", "status": "pending", "confidence": 87, "intent": "emotion" }
+        ],
+        "lightingPlan": {
+          "keyLight": { "type": "Overcast sky", "position": "Top", "intensity": 80, "color": "6500K" },
+          "fillLight": { "type": "Ambient bounce", "position": "All", "intensity": 50, "color": "6500K" },
+          "backLight": { "type": "None", "position": "-", "intensity": 0, "color": "-" },
+          "practicals": [],
+          "ratio": "2:1",
+          "notes": "Protect skin from going grey under overcast."
+        }
+      }
+    ],
+    "cameraSettings": {
+      "camera": "Sony FX6",
+      "sensor": "Full Frame",
+      "resolution": "4K UHD 23.98fps",
+      "codec": "XAVC S-I 4:2:2 10-bit",
+      "colorScience": "S-Log3 / S-Gamut3.Cine",
+      "exposure": { "value": "T2.8", "min": "T2", "max": "T5.6" },
+      "iso": { "value": 800, "min": 800, "max": 12800, "nativeISOs": "800 / 12800" },
+      "shutter": { "value": "1/48", "angle": "180°" },
+      "whiteBalance": { "value": "5600K", "mode": "Manual" },
+      "nd": { "value": "Clear", "stops": 0 },
+      "lens": { "focal": "50mm", "type": "Spherical Prime", "mount": "E", "tStop": "T2.8" },
+      "frameRate": "23.98fps"
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Play, BarChart3, Users, MapPin, Package, Palette, Target, Clock,
@@ -14,16 +14,61 @@ const viewTabs = [
   { id: 'themes', label: 'Themes', icon: Palette },
 ]
 
-export default function AnalysisDashboard() {
-  const navigate = useNavigate()
-  const { currentProject, analysisData, loading, error, runAnalysis, refreshAnalysis, selectedCamera } = useProject()
-  const [activeView, setActiveView] = useState('scenes')
-  const [objectives, setObjectives] = useState({ mood: 'Contemplative', style: 'Naturalistic' })
-  const [constraints, setConstraints] = useState({ budget: 'Medium', time: 'Standard' })
+const DEFAULT_MOODS = ['Contemplative', 'Tense', 'Joyful', 'Melancholy', 'Mysterious']
+const DEFAULT_STYLES = ['Naturalistic', 'Stylized', 'Documentary', 'Expressionist', 'Classical']
 
+// AI suggestions first, then the standard presets, without duplicates; the current
+// value is always present so a select never shows a blank.
+function mergeOptions(suggested = [], defaults = [], current = '') {
+  const seen = new Set()
+  return [current, ...suggested, ...defaults].filter((option) => {
+    const key = String(option || '').trim().toLowerCase()
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function AiPick({ show }) {
+  if (!show) return null
+  return <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-cinema-500/15 text-cinema-300 align-middle">AI pick</span>
+}
+
+const VIEW_TITLES = { scenes: 'Scenes', characters: 'Characters', locations: 'Locations', props: 'Props', themes: 'Themes' }
+
+// printMode renders read-only for the PDF report: data from props, no controls.
+// `summary` shows the header/targets/stats block; `view` picks the tab content.
+export default function AnalysisDashboard({ printMode = false, project, analysis, view = 'scenes', summary = true } = {}) {
+  const navigate = useNavigate()
+  const ctx = useProject()
+  const { loading, error, runAnalysis, refreshAnalysis, selectedCamera } = ctx
+  const currentProject = printMode ? project : ctx.currentProject
+  const analysisData = printMode ? analysis : ctx.analysisData
+  const [activeViewState, setActiveView] = useState('scenes')
+  const activeView = printMode ? view : activeViewState
   useEffect(() => {
-    if (currentProject?._id && !analysisData) refreshAnalysis()
-  }, [currentProject?._id, analysisData, refreshAnalysis])
+    if (!printMode && currentProject?._id && !analysisData) refreshAnalysis()
+  }, [printMode, currentProject?._id, analysisData, refreshAnalysis])
+
+  // Controls show the operator's choice if they made one, otherwise what the
+  // analysis recommended for this script. A new analysis clears manual choices.
+  const targets = analysisData?.creativeTargets
+  const production = analysisData?.productionConstraints
+  const analysisKey = analysisData?._id || analysisData?.updatedAt || ''
+  const [choices, setChoices] = useState({ key: '', values: {} })
+  const picked = choices.key === analysisKey ? choices.values : {}
+  const choose = (field, value) => setChoices({ key: analysisKey, values: { ...picked, [field]: value } })
+  const objectives = {
+    mood: picked.mood || targets?.mood || 'Contemplative',
+    style: picked.style || targets?.style || 'Naturalistic',
+  }
+  const constraints = {
+    budget: picked.budget || production?.budget || 'Medium',
+    time: picked.time || production?.timeline || 'Standard',
+  }
+
+  const moodOptions = mergeOptions(targets?.moodOptions, DEFAULT_MOODS, objectives.mood)
+  const styleOptions = mergeOptions(targets?.styleOptions, DEFAULT_STYLES, objectives.style)
 
   const handleRunAnalysis = async () => {
     if (!currentProject?._id) return
@@ -32,18 +77,16 @@ export default function AnalysisDashboard() {
     } catch { /* error handled in context */ }
   }
 
+  // Cheap derived values; the React compiler memoizes this component itself.
   const scenes = analysisData?.scenes || []
-  const allLocations = useMemo(() => [...new Set(scenes.flatMap((scene) => scene.locations || []))], [scenes])
-  const allProps = useMemo(() => [...new Set(scenes.flatMap((scene) => scene.props || []))], [scenes])
-  const clarityStats = useMemo(() => {
-    const characters = analysisData?.characterArcs || []
-    return {
-      scenes: scenes.length,
-      characters: characters.length,
-      locations: allLocations.length,
-      props: allProps.length,
-    }
-  }, [allLocations.length, allProps.length, analysisData?.characterArcs, scenes.length])
+  const allLocations = [...new Set(scenes.flatMap((scene) => scene.locations || []))]
+  const allProps = [...new Set(scenes.flatMap((scene) => scene.props || []))]
+  const clarityStats = {
+    scenes: scenes.length,
+    characters: (analysisData?.characterArcs || []).length,
+    locations: allLocations.length,
+    props: allProps.length,
+  }
 
   if (!currentProject?._id) {
     return (
@@ -59,7 +102,8 @@ export default function AnalysisDashboard() {
   }
 
   return (
-    <div className="animate-fadeIn">
+    <div className={printMode ? '' : 'animate-fadeIn'}>
+      {summary && (<>
       <div className="flex flex-col gap-4 mb-6 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white mb-1">AI Analysis Dashboard</h1>
@@ -74,24 +118,24 @@ export default function AnalysisDashboard() {
               {selectedCamera.brand} {selectedCamera.model}
             </div>
           )}
-          <button
+          {!printMode && <button
             onClick={handleRunAnalysis}
             disabled={loading || !currentProject?._id}
             className="flex items-center gap-2 px-4 py-2 bg-cinema-500 hover:bg-cinema-600 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             {loading ? 'Analyzing...' : 'Run Full Analysis'}
-          </button>
+          </button>}
         </div>
       </div>
 
-      {error && (
+      {!printMode && error && (
         <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">
           {error}
         </div>
       )}
 
-      {loading && (
+      {!printMode && loading && (
         <div className="mb-6 p-4 rounded-xl border border-cinema-500/30 bg-cinema-500/5 animate-fadeIn">
           <div className="flex items-center gap-3 mb-3">
             <Loader2 className="w-5 h-5 text-cinema-400 animate-spin" />
@@ -109,18 +153,23 @@ export default function AnalysisDashboard() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <label>
-              <span className="text-xs text-slate-500">Mood</span>
-              <select value={objectives.mood} onChange={(event) => setObjectives({ ...objectives, mood: event.target.value })} className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-white">
-                <option>Contemplative</option><option>Tense</option><option>Joyful</option><option>Melancholy</option><option>Mysterious</option>
+              <span className="text-xs text-slate-500">Mood<AiPick show={targets?.mood && objectives.mood === targets.mood} /></span>
+              <select value={objectives.mood} onChange={(event) => choose('mood', event.target.value)} className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-white">
+                {moodOptions.map((option) => <option key={option} value={option}>{option === targets?.mood ? `${option} (recommended)` : option}</option>)}
               </select>
             </label>
             <label>
-              <span className="text-xs text-slate-500">Style</span>
-              <select value={objectives.style} onChange={(event) => setObjectives({ ...objectives, style: event.target.value })} className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-white">
-                <option>Naturalistic</option><option>Stylized</option><option>Documentary</option><option>Expressionist</option><option>Classical</option>
+              <span className="text-xs text-slate-500">Style<AiPick show={targets?.style && objectives.style === targets.style} /></span>
+              <select value={objectives.style} onChange={(event) => choose('style', event.target.value)} className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-white">
+                {styleOptions.map((option) => <option key={option} value={option}>{option === targets?.style ? `${option} (recommended)` : option}</option>)}
               </select>
             </label>
           </div>
+          {targets?.rationale ? (
+            <p className="text-xs text-slate-400 leading-5 mt-3"><Sparkles className="w-3 h-3 inline mr-1 text-cinema-400" />{targets.rationale}</p>
+          ) : !analysisData && (
+            <p className="text-xs text-slate-500 mt-3">Run the analysis and these are chosen from your script.</p>
+          )}
         </div>
 
         <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/50">
@@ -130,23 +179,40 @@ export default function AnalysisDashboard() {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <label>
-              <span className="text-xs text-slate-500">Budget</span>
-              <select value={constraints.budget} onChange={(event) => setConstraints({ ...constraints, budget: event.target.value })} className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-white">
-                <option>Low</option><option>Medium</option><option>High</option><option>Unlimited</option>
+              <span className="text-xs text-slate-500">Budget<AiPick show={production?.budget && constraints.budget === production.budget} /></span>
+              <select value={constraints.budget} onChange={(event) => choose('budget', event.target.value)} className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-white">
+                {['Low', 'Medium', 'High', 'Unlimited'].map((option) => <option key={option} value={option}>{option === production?.budget ? `${option} (recommended)` : option}</option>)}
               </select>
             </label>
             <label>
-              <span className="text-xs text-slate-500">Timeline</span>
-              <select value={constraints.time} onChange={(event) => setConstraints({ ...constraints, time: event.target.value })} className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-white">
-                <option>Tight</option><option>Standard</option><option>Relaxed</option>
+              <span className="text-xs text-slate-500">Timeline<AiPick show={production?.timeline && constraints.time === production.timeline} /></span>
+              <select value={constraints.time} onChange={(event) => choose('time', event.target.value)} className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-sm text-white">
+                {['Tight', 'Standard', 'Relaxed'].map((option) => <option key={option} value={option}>{option === production?.timeline ? `${option} (recommended)` : option}</option>)}
               </select>
             </label>
           </div>
+          {production && (
+            <div className="mt-3 space-y-2">
+              {production.estimatedShootDays > 0 && (
+                <div className="text-xs text-slate-300 flex items-center gap-1.5"><Clock className="w-3 h-3 text-amber-400" /> ~{production.estimatedShootDays} shoot day{production.estimatedShootDays === 1 ? '' : 's'} estimated</div>
+              )}
+              {(production.drivers || []).length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {production.drivers.map((driver) => (
+                    <span key={driver} className="text-[11px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-300">{driver}</span>
+                  ))}
+                </div>
+              )}
+              {production.rationale && <p className="text-xs text-slate-400 leading-5">{production.rationale}</p>}
+            </div>
+          )}
         </div>
       </div>
+      </>)}
 
       {analysisData && (
         <>
+          {summary && (
           <div className="grid gap-3 mb-6 grid-cols-2 xl:grid-cols-4">
             {[
               { label: 'Confidence', value: `${analysisData.confidenceScore || 0}%`, sub: 'analysis confidence', color: 'text-onset-400' },
@@ -161,7 +227,16 @@ export default function AnalysisDashboard() {
               </div>
             ))}
           </div>
+          )}
 
+          {printMode ? (
+            activeView && (
+              <div className="report-heading flex items-center gap-2 mb-4 pb-2 border-b border-slate-800">
+                {(() => { const Icon = viewTabs.find((t) => t.id === activeView)?.icon; return Icon ? <Icon className="w-4 h-4 text-cinema-400" /> : null })()}
+                <span className="text-lg font-semibold text-white">{VIEW_TITLES[activeView]}</span>
+              </div>
+            )
+          ) : (
           <div className="flex gap-1 mb-4 border-b border-slate-800 overflow-x-auto">
             {viewTabs.map((tab) => (
               <button
@@ -176,12 +251,13 @@ export default function AnalysisDashboard() {
               </button>
             ))}
           </div>
+          )}
 
-          <div className="animate-fadeIn">
+          <div className={printMode ? '' : 'animate-fadeIn'}>
             {activeView === 'scenes' && (
               <div className="space-y-3">
                 {scenes.map((scene) => (
-                  <div key={scene.number} className="p-4 rounded-xl border border-slate-800 bg-slate-900/40 hover:bg-slate-800/40 transition">
+                  <div key={scene.number} className="p-4 rounded-xl border border-slate-800 bg-slate-900/40 hover:bg-slate-800/40 transition break-inside-avoid">
                     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -284,7 +360,7 @@ export default function AnalysisDashboard() {
             )}
           </div>
 
-          {analysisData.ambiguities?.length > 0 && (
+          {summary && analysisData.ambiguities?.length > 0 && (
             <div className="mt-6 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
               <div className="flex items-center gap-2 mb-3">
                 <AlertTriangle className="w-4 h-4 text-amber-400" />
@@ -301,12 +377,12 @@ export default function AnalysisDashboard() {
             </div>
           )}
 
-          <div className="mt-6 flex justify-end">
+          {!printMode && <div className="mt-6 flex justify-end">
             <button onClick={() => navigate('/pre-production/outputs')} className="flex items-center gap-2 px-5 py-2.5 bg-cinema-500 hover:bg-cinema-600 text-white rounded-lg text-sm font-medium transition">
               View Generated Outputs
               <ChevronRight className="w-4 h-4" />
             </button>
-          </div>
+          </div>}
         </>
       )}
     </div>

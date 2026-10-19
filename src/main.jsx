@@ -5,6 +5,10 @@ import { AuthProvider } from './context/AuthContext'
 import { ProjectProvider } from './context/ProjectContext'
 import './index.css'
 import App from './App.jsx'
+import { initAppearance } from './services/theme'
+
+// Apply the saved theme before the first paint.
+initAppearance()
 
 // Use HashRouter for GitHub Pages, BrowserRouter for production with proper server config
 const Router = import.meta.env.VITE_ROUTER === 'browser' ? BrowserRouter : HashRouter

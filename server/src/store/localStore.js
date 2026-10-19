@@ -74,6 +74,7 @@ function normalizeScene(scene = {}, index = 0) {
       ? scene.storyboard.map((frame, frameIndex) => {
           const frameId = frame._id || frame.id || randomUUID()
           return {
+            ...frame, // keep sketchSvg / sketchModel / sketchedAt
             _id: frameId,
             id: frameId,
           shotIndex: frame.shotIndex ?? frameIndex,
@@ -84,12 +85,19 @@ function normalizeScene(scene = {}, index = 0) {
         })
       : [],
     lightingPlan: {
+      ...(scene.lightingPlan || {}),
       keyLight: scene.lightingPlan?.keyLight || {},
       fillLight: scene.lightingPlan?.fillLight || {},
       backLight: scene.lightingPlan?.backLight || {},
+      additionalLights: Array.isArray(scene.lightingPlan?.additionalLights) ? scene.lightingPlan.additionalLights : [],
       practicals: Array.isArray(scene.lightingPlan?.practicals) ? scene.lightingPlan.practicals : [],
       ratio: scene.lightingPlan?.ratio || '',
       notes: scene.lightingPlan?.notes || '',
+    },
+    blocking: {
+      characters: Array.isArray(scene.blocking?.characters) ? scene.blocking.characters : [],
+      camera: scene.blocking?.camera || { x: 50, y: 95 },
+      notes: scene.blocking?.notes || '',
     },
   }
 }

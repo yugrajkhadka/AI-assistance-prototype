@@ -6,6 +6,10 @@ import {
 } from 'lucide-react'
 import { useProject } from '../../context/ProjectContext'
 import { shots as shotsApi } from '../../services/api'
+import ShotStoryboard from '../../components/storyboard/ShotStoryboard'
+import LightingFloorPlan from '../../components/lighting/LightingFloorPlan'
+import SceneBlockingFloorPlan from '../../components/blocking/SceneBlockingFloorPlan'
+import { getKeySide, getLights, getPracticals, describeDirection, isUnlitPlan } from '../../utils/lightingLayout'
 
 const outputTabs = [
   { id: 'shots', label: 'Shot List', icon: List },
@@ -15,6 +19,13 @@ const outputTabs = [
   { id: 'composition', label: 'Composition', icon: Maximize },
   { id: 'movement', label: 'Movement', icon: Move },
 ]
+
+const LIGHT_TITLE = { key: 'Key Light', fill: 'Fill Light', back: 'Back Light' }
+const LIGHT_TEXT = { cinema: 'text-cinema-400', amber: 'text-amber-400', blue: 'text-blue-400', slate: 'text-slate-300' }
+const LIGHT_BAR = { cinema: 'bg-cinema-400', amber: 'bg-amber-400', blue: 'bg-blue-400', slate: 'bg-slate-400' }
+
+// "About 3:1 key-to-fill on Dracula's face…" → "3:1"; older plans stored prose here.
+const ratioShort = (ratio = '') => (String(ratio).match(/\d+(?:\.\d+)?\s*:\s*\d+/) || [String(ratio).slice(0, 12)])[0].replace(/\s+/g, '')
 
 const statusColors = {
   approved: 'bg-onset-500/20 text-onset-400',
@@ -31,18 +42,22 @@ const intentColors = {
   thematic: 'bg-amber-500/15 text-amber-400',
 }
 
-const storyboardStyles = ['Cinematic', 'Sketch', 'Noir', 'Anime', 'Photorealistic']
-
-export default function GeneratedOutputs() {
+// printMode renders one scene + one tab read-only for the PDF report: data comes
+// from props, every shot is expanded, notes are open, and controls are hidden.
+export default function GeneratedOutputs({ printMode = false, project, analysis, sceneIndex = 0, tab = 'shots' } = {}) {
   const navigate = useNavigate()
-  const { currentProject, analysisData, setAnalysisData } = useProject()
-  const [activeTab, setActiveTab] = useState('shots')
-  const [selectedScene, setSelectedScene] = useState(0)
-  const [storyboardStyle, setStoryboardStyle] = useState('Cinematic')
+  const ctx = useProject()
+  const currentProject = printMode ? project : ctx.currentProject
+  const analysisData = printMode ? analysis : ctx.analysisData
+  const { setAnalysisData } = ctx
+  const [activeTabState, setActiveTab] = useState('shots')
+  const [selectedSceneState, setSelectedScene] = useState(0)
+  const activeTab = printMode ? tab : activeTabState
+  const selectedScene = printMode ? sceneIndex : selectedSceneState
   const [expandedShot, setExpandedShot] = useState(null)
   const [noteDrafts, setNoteDrafts] = useState({})
 
-  const scenes = analysisData?.scenes || []
+  const scenes = useMemo(() => analysisData?.scenes || [], [analysisData?.scenes])
   const scene = scenes[selectedScene]
   const compositionRules = useMemo(() => {
     if (!scene) return []
@@ -95,6 +110,22 @@ export default function GeneratedOutputs() {
     } catch { /* handle */ }
   }
 
+  // A newly drawn panel arrives; merge it in without clobbering panels drawn in parallel.
+  const handleStoryboardFrame = (sceneIndex, shotIndex, frame) => {
+    setAnalysisData((current) => {
+      if (!current?.scenes?.[sceneIndex]) return current
+      return {
+        ...current,
+        scenes: current.scenes.map((item, index) => {
+          if (index !== sceneIndex) return item
+          const board = [...(item.storyboard || [])]
+          board[shotIndex] = { ...board[shotIndex], ...frame }
+          return { ...item, storyboard: board }
+        }),
+      }
+    })
+  }
+
   const handleNote = async (shotId) => {
     const text = noteDrafts[shotId]?.trim()
     if (!text || !currentProject?._id) return
@@ -109,7 +140,8 @@ export default function GeneratedOutputs() {
   }
 
   return (
-    <div className="animate-fadeIn">
+    <div className={printMode ? '' : 'animate-fadeIn'}>
+      {!printMode && (<>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white mb-1">Generated Outputs</h1>
@@ -149,23 +181,27 @@ export default function GeneratedOutputs() {
         <span className="text-xs text-slate-500">{scene.shots?.length || 0} shots &middot; {scene.duration}</span>
       </div>
 
+      </>)}
+
       {/* Output Tabs */}
+      {!printMode && (
       <div className="flex gap-1 mb-5 overflow-x-auto border-b border-slate-800 pb-px">
-        {outputTabs.map((tab) => (
+        {outputTabs.map((item) => (
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            key={item.id}
+            onClick={() => setActiveTab(item.id)}
             className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium whitespace-nowrap transition border-b-2 ${
-              activeTab === tab.id
+              activeTab === item.id
                 ? 'text-cinema-400 border-cinema-400'
                 : 'text-slate-500 border-transparent hover:text-slate-300'
             }`}
           >
-            <tab.icon className="w-3.5 h-3.5" />
-            {tab.label}
+            <item.icon className="w-3.5 h-3.5" />
+            {item.label}
           </button>
         ))}
       </div>
+      )}
 
       {/* Shot List */}
       {activeTab === 'shots' && (
@@ -173,7 +209,7 @@ export default function GeneratedOutputs() {
           {(scene.shots || []).map((shot, idx) => (
             <div
               key={shot._id || shot.id || idx}
-              className="rounded-lg border border-slate-800 bg-slate-900/40 overflow-hidden"
+              className="rounded-lg border border-slate-800 bg-slate-900/40 overflow-hidden break-inside-avoid"
             >
               <div
                 className="flex items-center gap-3 p-3 cursor-pointer hover:bg-slate-800/30 transition"
@@ -184,9 +220,9 @@ export default function GeneratedOutputs() {
                 <span className="text-sm text-white flex-1">{shot.description}</span>
                 <span className="text-xs text-slate-500">{shot.type}</span>
                 <span className={`text-xs px-2 py-0.5 rounded ${statusColors[shot.status]}`}>{shot.status}</span>
-                <ChevronDown className={`w-4 h-4 text-slate-500 transition ${expandedShot === idx ? 'rotate-180' : ''}`} />
+                {!printMode && <ChevronDown className={`w-4 h-4 text-slate-500 transition ${expandedShot === idx ? 'rotate-180' : ''}`} />}
               </div>
-              {expandedShot === idx && (
+              {(printMode || expandedShot === idx) && (
                 <div className="px-3 pb-3 border-t border-slate-800/50 animate-fadeIn">
                   <div className="grid grid-cols-4 gap-3 mt-3">
                     <div className="text-center p-2 rounded bg-slate-800/50">
@@ -216,6 +252,7 @@ export default function GeneratedOutputs() {
                       Confidence: <span className={`font-medium ${shot.confidence >= 90 ? 'text-onset-400' : shot.confidence >= 80 ? 'text-amber-400' : 'text-red-400'}`}>{shot.confidence}%</span>
                     </div>
                     <div className="flex-1" />
+                    {!printMode && (<>
                     <button onClick={() => handleApproveShot(shot._id || shot.id)} className="p-1.5 rounded hover:bg-slate-700 text-slate-500 hover:text-white transition" title="Accept">
                       <Check className="w-3.5 h-3.5" />
                     </button>
@@ -228,7 +265,16 @@ export default function GeneratedOutputs() {
                     <button className="p-1.5 rounded hover:bg-slate-700 text-slate-500 hover:text-white transition" title="Pin to Timeline">
                       <Pin className="w-3.5 h-3.5" />
                     </button>
+                    </>)}
                   </div>
+                  {(shot.notes || []).length > 0 && printMode && (
+                    <div className="mt-2 space-y-1">
+                      {shot.notes.map((note, n) => (
+                        <div key={n} className="text-xs text-slate-400"><span className="text-slate-500">{note.author || 'Note'}:</span> {note.text}</div>
+                      ))}
+                    </div>
+                  )}
+                  {!printMode && (
                   <div className="mt-2 flex gap-2">
                     <input
                       value={noteDrafts[shot._id || shot.id] || ''}
@@ -237,6 +283,7 @@ export default function GeneratedOutputs() {
                       className="flex-1 bg-slate-800/50 border border-slate-700 rounded-md px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-cinema-500"
                     />
                   </div>
+                  )}
                 </div>
               )}
             </div>
@@ -247,156 +294,98 @@ export default function GeneratedOutputs() {
       {/* Storyboard */}
       {activeTab === 'storyboard' && (
         <div className="animate-fadeIn">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-xs text-slate-500">Style Preset:</span>
-            {storyboardStyles.map((s) => (
-              <button
-                key={s}
-                onClick={() => setStoryboardStyle(s)}
-                className={`px-3 py-1 rounded-full text-xs transition ${
-                  storyboardStyle === s
-                    ? 'bg-cinema-500 text-white'
-                    : 'bg-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                {s}
-              </button>
-            ))}
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            {(scene.storyboard || []).map((frame, i) => {
-              const shot = scene.shots?.[frame.shotIndex ?? i]
-              return (
-                <div key={frame.id || i} className="rounded-xl border border-slate-800 bg-slate-900/40 overflow-hidden group">
-                  <div className="aspect-video bg-gradient-to-br from-slate-800 to-slate-900 relative flex items-center justify-center">
-                    {/* Simulated storyboard frame with grid overlay */}
-                    <div className="absolute inset-0 opacity-20">
-                      <div className="absolute left-1/3 top-0 bottom-0 border-l border-dashed border-cinema-400/40" />
-                      <div className="absolute left-2/3 top-0 bottom-0 border-l border-dashed border-cinema-400/40" />
-                      <div className="absolute top-1/3 left-0 right-0 border-t border-dashed border-cinema-400/40" />
-                      <div className="absolute top-2/3 left-0 right-0 border-t border-dashed border-cinema-400/40" />
-                    </div>
-                    <div className="text-center z-10">
-                      <Camera className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                      <div className="text-xs text-slate-500">{shot?.type} — {shot?.lens}</div>
-                      <div className="text-xs text-slate-600 mt-1">{storyboardStyle} style · grounded previs</div>
-                    </div>
-                    <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/50 text-xs text-white font-mono">
-                      {i + 1}/{scene.storyboard?.length || 0}
-                    </div>
-                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-3 opacity-0 group-hover:opacity-100 transition">
-                      <div className="flex gap-1 justify-end">
-                        <button className="p-1.5 rounded bg-white/10 hover:bg-white/20 text-white transition">
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
-                        <button className="p-1.5 rounded bg-white/10 hover:bg-white/20 text-white transition">
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                <div className="p-3">
-                  <div className="text-sm text-white">{frame.caption}</div>
-                  <div className="text-xs text-slate-500 mt-1">{shot?.movement} &middot; {shot?.angle}</div>
-                </div>
-              </div>
-            )
-            })}
-          </div>
+          <ShotStoryboard
+            projectId={currentProject?._id}
+            sceneIndex={selectedScene}
+            scene={scene}
+            keySide={getKeySide(scene.lightingPlan)}
+            onFrame={handleStoryboardFrame}
+            onAnalysis={(fresh) => fresh?.scenes && setAnalysisData(fresh)}
+            readOnly={printMode}
+          />
         </div>
       )}
 
       {/* Lighting Plans */}
       {activeTab === 'lighting' && scene.lightingPlan && (
         <div className="animate-fadeIn space-y-4">
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { label: 'Key Light', data: scene.lightingPlan.keyLight || {}, color: 'cinema' },
-              { label: 'Fill Light', data: scene.lightingPlan.fillLight || {}, color: 'amber' },
-              { label: 'Back Light', data: scene.lightingPlan.backLight || {}, color: 'blue' },
-            ].map(({ label, data, color }) => (
-              <div key={label} className="p-4 rounded-xl border border-slate-800 bg-slate-900/40">
-                <div className={`text-sm font-medium text-${color === 'cinema' ? 'cinema' : color}-400 mb-3`}>{label}</div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Type</span>
-                    <span className="text-white">{data.type}</span>
+          {isUnlitPlan(scene.lightingPlan) ? (
+            <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/40 text-sm text-slate-300">
+              <div className="text-sm font-medium text-white mb-1">No lighting rig</div>
+              {scene.lightingPlan.reason || 'This scene is graphics / a title card and is not photographed.'}
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {getLights(scene.lightingPlan).map((light) => (
+                  <div key={light.id} className="p-4 rounded-xl border border-slate-800 bg-slate-900/40 break-inside-avoid">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className={`text-sm font-semibold ${LIGHT_TEXT[light.color]}`}>{LIGHT_TITLE[light.role] || light.title || light.label}</div>
+                      <span className="text-xs font-mono text-slate-400">{light.short}</span>
+                    </div>
+                    <div className="text-sm text-white">{light.name}</div>
+                    {light.data.modifier && <div className="text-xs text-slate-400">{light.data.modifier}</div>}
+                    <dl className="mt-3 space-y-1.5 text-xs">
+                      {light.data.motivation && <div className="flex gap-2"><dt className="text-slate-500 w-20 shrink-0">Motivated by</dt><dd className="text-slate-200">{light.data.motivation}</dd></div>}
+                      <div className="flex gap-2"><dt className="text-slate-500 w-20 shrink-0">Direction</dt><dd className="text-slate-200">{describeDirection(light)}{light.elevationDeg < 75 ? `, ${Math.round(light.elevationDeg)}° up` : ''}{light.distanceM ? `, ${light.distanceM} m` : ''}</dd></div>
+                      {light.data.position && <div className="flex gap-2"><dt className="text-slate-500 w-20 shrink-0">Placement</dt><dd className="text-slate-200 line-clamp-4" title={light.data.position}>{light.data.position}</dd></div>}
+                      {light.colorShort && <div className="flex gap-2"><dt className="text-slate-500 w-20 shrink-0">Color</dt><dd className="text-slate-200">{light.colorShort}</dd></div>}
+                    </dl>
+                    {light.intensity != null && (
+                      <div className="mt-3 bg-slate-800 rounded-full h-1.5">
+                        <div className={`h-1.5 rounded-full ${LIGHT_BAR[light.color]}`} style={{ width: `${light.intensity}%` }} />
+                      </div>
+                    )}
+                    {(light.data.notes || (light.data.color && light.data.color.length > 40)) && (
+                      <details open={printMode} className="mt-2 text-xs text-slate-400">
+                        <summary className="cursor-pointer text-slate-500 hover:text-slate-300">Rigging notes</summary>
+                        {light.data.notes && <p className="mt-1 leading-5">{light.data.notes}</p>}
+                        {light.data.color && light.data.color.length > 40 && <p className="mt-1 leading-5">Color: {light.data.color}</p>}
+                      </details>
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Position</span>
-                    <span className="text-white">{data.position}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Intensity</span>
-                    <span className="text-white">{data.intensity}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Color Temp</span>
-                    <span className="text-white">{data.color}</span>
-                  </div>
-                </div>
-                <div className="mt-3 bg-slate-800 rounded-full h-1.5">
-                  <div className={`h-1.5 rounded-full ${color === 'cinema' ? 'bg-cinema-400' : color === 'amber' ? 'bg-amber-400' : 'bg-blue-400'}`} style={{ width: `${data.intensity}%` }} />
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/40">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium text-white">Lighting Ratio</span>
-              <span className="text-sm text-cinema-400 font-mono">{scene.lightingPlan.ratio}</span>
-            </div>
-            {scene.lightingPlan.practicals?.length > 0 && (
-              <div className="mb-3">
-                <div className="text-xs text-slate-500 mb-1">Practicals</div>
-                <div className="flex gap-2 flex-wrap">
-                  {scene.lightingPlan.practicals.map((p) => (
-                    <span key={p} className="text-xs px-2 py-1 rounded bg-amber-500/10 text-amber-300">{p}</span>
-                  ))}
+              <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/40 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-white">Lighting Ratio</span>
+                  <span className="text-sm text-cinema-400 font-mono">
+                    {ratioShort(scene.lightingPlan.ratio)}
+                    {scene.lightingPlan.cameraWhiteBalanceK ? <span className="text-slate-500"> · camera WB {scene.lightingPlan.cameraWhiteBalanceK}K</span> : null}
+                  </span>
                 </div>
+                {(scene.lightingPlan.ratioNote || (scene.lightingPlan.ratio || '').length > 12) && (
+                  <p className="text-xs text-slate-400 leading-5">{scene.lightingPlan.ratioNote || scene.lightingPlan.ratio}</p>
+                )}
+                {getPracticals(scene.lightingPlan).length > 0 && (
+                  <div>
+                    <div className="text-xs text-slate-500 mb-1.5">Practicals (in frame)</div>
+                    <div className="space-y-1.5">
+                      {getPracticals(scene.lightingPlan).map((p) => (
+                        <div key={p.id} className="text-xs flex gap-2">
+                          <span className="font-semibold text-amber-300 shrink-0 w-6">{p.id}</span>
+                          <span className="text-slate-200">
+                            {p.name}
+                            <span className="text-slate-500">{[p.colorTempK ? ` · ${p.colorTempK}K` : '', p.dimmerPct != null ? ` · dimmed to ${p.dimmerPct}%` : ''].join('')}</span>
+                            {p.note && p.note !== p.name && <span className="block text-slate-500 leading-5">{p.note}</span>}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {scene.lightingPlan.notes && (
+                  <details open={printMode} className="text-xs text-slate-400">
+                    <summary className="cursor-pointer text-slate-500 hover:text-slate-300">Gaffer notes</summary>
+                    <p className="mt-1 leading-5">{scene.lightingPlan.notes}</p>
+                  </details>
+                )}
               </div>
-            )}
-            <div className="text-xs text-slate-500 mt-2">
-              <span className="font-medium text-slate-400">Notes:</span> {scene.lightingPlan.notes}
-            </div>
-          </div>
+            </>
+          )}
 
-          {/* Lighting Diagram */}
-          <div className="p-6 rounded-xl border border-slate-800 bg-slate-900/40">
-            <div className="text-sm font-medium text-white mb-4">Overhead Lighting Diagram</div>
-            <div className="relative w-full aspect-[2/1] bg-slate-800/50 rounded-lg border border-slate-700">
-              {/* Set representation */}
-              <div className="absolute inset-8 border border-dashed border-slate-600 rounded flex items-center justify-center">
-                <span className="text-xs text-slate-600">SET</span>
-              </div>
-              {/* Key light indicator */}
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col items-center">
-                <div className="w-6 h-6 rounded-full bg-cinema-500/40 border-2 border-cinema-400 flex items-center justify-center">
-                  <Sun className="w-3 h-3 text-cinema-300" />
-                </div>
-                <span className="text-[10px] text-cinema-400 mt-1">KEY</span>
-              </div>
-              {/* Fill light indicator */}
-              <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center">
-                <div className="w-6 h-6 rounded-full bg-amber-500/40 border-2 border-amber-400 flex items-center justify-center">
-                  <Sun className="w-3 h-3 text-amber-300" />
-                </div>
-                <span className="text-[10px] text-amber-400 mt-1">FILL</span>
-              </div>
-              {/* Camera */}
-              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex flex-col items-center">
-                <div className="w-6 h-6 rounded bg-white/10 border border-white/30 flex items-center justify-center">
-                  <Camera className="w-3 h-3 text-white" />
-                </div>
-                <span className="text-[10px] text-white/60 mt-0.5">CAM</span>
-              </div>
-              {/* Subject */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white/10 border border-white/20 flex items-center justify-center">
-                <span className="text-[10px] text-white/60">S</span>
-              </div>
-            </div>
-          </div>
+          <LightingFloorPlan lightingPlan={scene.lightingPlan} shots={scene.shots || []} readOnly={printMode} />
         </div>
       )}
 
@@ -404,7 +393,7 @@ export default function GeneratedOutputs() {
       {activeTab === 'camera' && (
         <div className="animate-fadeIn space-y-3">
           {(scene.shots || []).map((shot, i) => (
-            <div key={shot._id || shot.id || i} className="p-4 rounded-xl border border-slate-800 bg-slate-900/40">
+            <div key={shot._id || shot.id || i} className="p-4 rounded-xl border border-slate-800 bg-slate-900/40 break-inside-avoid">
               <div className="flex items-center gap-3 mb-3">
                 <span className="text-xs font-mono text-cinema-400">Shot {i + 1}</span>
                 <span className="text-sm text-white font-medium">{shot.description}</span>
@@ -462,33 +451,7 @@ export default function GeneratedOutputs() {
             </div>
           </div>
 
-          {/* Blocking diagram */}
-          <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/40">
-            <div className="text-sm font-medium text-white mb-3">Scene Blocking</div>
-            <div className="relative w-full aspect-video bg-slate-800/50 rounded-lg border border-slate-700 overflow-hidden">
-              <div className="absolute inset-0 opacity-30">
-                <div className="absolute left-1/3 top-0 bottom-0 border-l border-cinema-400/40" />
-                <div className="absolute left-2/3 top-0 bottom-0 border-l border-cinema-400/40" />
-                <div className="absolute top-1/3 left-0 right-0 border-t border-cinema-400/40" />
-                <div className="absolute top-2/3 left-0 right-0 border-t border-cinema-400/40" />
-              </div>
-              {(scene.characters || []).map((char, i) => (
-                <div
-                  key={char}
-                  className="absolute w-10 h-10 rounded-full bg-cinema-500/30 border-2 border-cinema-400 flex items-center justify-center"
-                  style={{ top: `${35 + i * 20}%`, left: `${30 + i * 15}%` }}
-                >
-                  <span className="text-[10px] text-cinema-300 font-medium">{char.charAt(0)}</span>
-                </div>
-              ))}
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2">
-                <div className="flex flex-col items-center">
-                  <div className="w-3 h-3 border-l-2 border-r-2 border-b-2 border-white/40" style={{ borderBottom: 'none', borderTop: '2px solid rgba(255,255,255,0.4)' }} />
-                  <span className="text-[9px] text-white/40 mt-0.5">CAM</span>
-                </div>
-              </div>
-            </div>
-          </div>
+          <SceneBlockingFloorPlan blocking={scene.blocking} />
 
           {/* Depth Cues */}
           <div className="p-4 rounded-xl border border-slate-800 bg-slate-900/40">
@@ -513,7 +476,7 @@ export default function GeneratedOutputs() {
       {activeTab === 'movement' && (
         <div className="animate-fadeIn space-y-3">
           {(scene.shots || []).map((shot, i) => (
-            <div key={shot._id || shot.id || i} className="p-4 rounded-xl border border-slate-800 bg-slate-900/40 flex items-center gap-4">
+            <div key={shot._id || shot.id || i} className="p-4 rounded-xl border border-slate-800 bg-slate-900/40 flex items-center gap-4 break-inside-avoid">
               <span className="text-xs font-mono text-cinema-400 w-16">Shot {i + 1}</span>
               <div className="flex-1">
                 <div className="text-sm text-white">{shot.description}</div>

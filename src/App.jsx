@@ -5,6 +5,7 @@ import AnalysisDashboard from './pages/preproduction/AnalysisDashboard'
 import GeneratedOutputs from './pages/preproduction/GeneratedOutputs'
 import ReviewApproval from './pages/preproduction/ReviewApproval'
 import LiveCamera from './pages/onset/LiveCamera'
+import ReportPage from './pages/ReportPage'
 import GuidancePanel from './pages/onset/GuidancePanel'
 import ProjectsPage from './pages/ProjectsPage'
 import SettingsPage from './pages/SettingsPage'
@@ -13,6 +14,8 @@ import HelpPage from './pages/HelpPage'
 export default function App() {
   return (
     <Routes>
+      {/* Full-page report (no app chrome) — also what the PDF exporter prints. */}
+      <Route path="report/:projectId" element={<ReportPage />} />
       <Route element={<AppShell />}>
         <Route index element={<Navigate to="/pre-production/upload" replace />} />
         <Route path="pre-production">

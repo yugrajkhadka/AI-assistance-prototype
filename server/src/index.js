@@ -12,6 +12,7 @@ import exportRoutes from './routes/export.js'
 import onsetRoutes from './routes/onset.js'
 import { isDatabaseReady } from './store/localStore.js'
 import { checkOllamaHealth } from './services/ollamaHealth.js'
+import { isClaudeConfigured } from './services/aiService.js'
 
 const app = express()
 const PORT = process.env.PORT || 3002
@@ -51,6 +52,7 @@ app.get('/api/health', async (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     storage: isDatabaseReady() ? 'mongodb' : 'local-file',
+    aiProvider: isClaudeConfigured() ? `claude (${process.env.CLAUDE_MODEL || 'claude-opus-5-5'})` : process.env.TOKENROUTER_API_KEY ? 'tokenrouter' : 'ollama',
     ollama,
   })
 })

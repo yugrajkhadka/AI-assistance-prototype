@@ -3,11 +3,15 @@ import { Palette, Shield, Bell, Download } from 'lucide-react'
 import CameraPackageSelector from '../components/camera/CameraPackageSelector'
 import { useProject } from '../context/ProjectContext'
 import { loadCameraPrefs, saveCameraPrefs } from '../services/cameraPrefs'
+import { loadAppearance, saveAppearance } from '../services/theme'
 
 export default function SettingsPage() {
   const { currentProject, selectedCamera, updateProject } = useProject()
-  const [theme, setTheme] = useState('dark')
-  const [highContrast, setHighContrast] = useState(false)
+  const [appearance, setAppearance] = useState(loadAppearance)
+  const { theme, highContrast } = appearance
+  // Saved to localStorage and applied to the whole app immediately.
+  const setTheme = (value) => setAppearance(saveAppearance({ theme: value }))
+  const setHighContrast = (value) => setAppearance(saveAppearance({ highContrast: value }))
   const [_haptics, _setHaptics] = useState(true)
   const [notifications, setNotifications] = useState(true)
   const [privacy, setPrivacy] = useState('private')

@@ -3,6 +3,7 @@ import { optionalAuth } from '../middleware/auth.js'
 import Project from '../models/Project.js'
 import Analysis from '../models/Analysis.js'
 import * as ai from '../services/aiService.js'
+import { drawPanel, getSketchStatus, startSketchJob } from '../services/storyboardJobs.js'
 import {
   findAnalysisByProject,
   findProjectById,
@@ -39,20 +40,24 @@ router.post('/:projectId', optionalAuth, async (req, res, next) => {
     // Generate shot lists, storyboards, and lighting for each scene
     const scenesWithDetails = []
     for (const scene of breakdown.scenes.slice(0, 10)) {
+      // Lighting first: the shot list is built on the rig, so the two never disagree.
+      const lightingPlan = await ai.generateLightingPlan(scene)
+
       // Shot list
-      const shots = await ai.generateShotList(scene)
+      const shots = await ai.generateShotList({ ...scene, lightingPlan })
 
       // Storyboard captions
       const storyboard = await ai.generateStoryboard(shots)
 
-      // Lighting plan
-      const lightingPlan = await ai.generateLightingPlan(scene)
+      // Scene blocking — character positions and movement
+      const blocking = await ai.generateBlocking(scene)
 
       scenesWithDetails.push({
         ...scene,
         shots,
         storyboard,
         lightingPlan,
+        blocking,
       })
     }
 
@@ -66,6 +71,8 @@ router.post('/:projectId', optionalAuth, async (req, res, next) => {
       sceneBreakdown: breakdown.sceneBreakdown,
       characterArcs: breakdown.characterArcs,
       ambiguities: breakdown.ambiguities,
+      creativeTargets: breakdown.creativeTargets,
+      productionConstraints: breakdown.productionConstraints,
       scenes: scenesWithDetails,
       cameraSettings,
     }
@@ -82,6 +89,9 @@ router.post('/:projectId', optionalAuth, async (req, res, next) => {
     project.sceneCount = scenesWithDetails.length
     if (isDatabaseReady()) await project.save()
     else await saveProject(project)
+
+    // Draw every storyboard panel in the background; the UI shows progress.
+    startSketchJob(project._id)
 
     res.json(analysis)
   } catch (err) { next(err) }
@@ -110,18 +120,47 @@ router.post('/:projectId/scene/:sceneIndex', optionalAuth, async (req, res, next
     const scene = analysis.scenes[idx]
     if (!scene) return res.status(404).json({ error: 'Scene not found' })
 
-    // Regenerate shots, storyboard, and lighting for this scene
-    const shots = await ai.generateShotList(scene)
-    const storyboard = await ai.generateStoryboard(shots)
+    // Regenerate lighting, then shots built on it, storyboard, and blocking for this scene
     const lightingPlan = await ai.generateLightingPlan(scene)
+    const shots = await ai.generateShotList({ ...(scene.toObject?.() || scene), lightingPlan })
+    const storyboard = await ai.generateStoryboard(shots)
+    const blocking = await ai.generateBlocking(scene)
 
     analysis.scenes[idx].shots = shots
     analysis.scenes[idx].storyboard = storyboard
     analysis.scenes[idx].lightingPlan = lightingPlan
+    analysis.scenes[idx].blocking = blocking
     if (isDatabaseReady()) await analysis.save()
     else await saveAnalysis(analysis)
+    startSketchJob(req.params.projectId)
 
     res.json(analysis.scenes[idx])
+  } catch (err) { next(err) }
+})
+
+// Draw (or redraw with { force: true }) the storyboard sketch for one shot.
+router.post('/:projectId/scene/:sceneIndex/storyboard/:shotIndex/sketch', optionalAuth, async (req, res, next) => {
+  try {
+    const shotIdx = parseInt(req.params.shotIndex)
+    const frame = await drawPanel(req.params.projectId, parseInt(req.params.sceneIndex), shotIdx, { force: Boolean(req.body?.force) })
+    res.json({ shotIndex: shotIdx, frame })
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message })
+    next(err)
+  }
+})
+
+// Background drawing of every missing panel (also started automatically after analysis).
+router.post('/:projectId/storyboard/draw-all', optionalAuth, async (req, res, next) => {
+  try {
+    startSketchJob(req.params.projectId)
+    res.json(await getSketchStatus(req.params.projectId))
+  } catch (err) { next(err) }
+})
+
+router.get('/:projectId/storyboard/status', optionalAuth, async (req, res, next) => {
+  try {
+    res.json(await getSketchStatus(req.params.projectId))
   } catch (err) { next(err) }
 })
 
@@ -146,6 +185,7 @@ router.post('/:projectId/scene/:sceneIndex/refine', optionalAuth, async (req, re
 
     if (isDatabaseReady()) await analysis.save()
     else await saveAnalysis(analysis)
+    startSketchJob(req.params.projectId)
 
     res.json(analysis.scenes[idx])
   } catch (err) { next(err) }

@@ -30,10 +30,102 @@ html, body, #root {
   margin: 0;
 }
 
+/* ─── Appearance ───────────────────────────────────────────────────────────
+   The UI is written with Tailwind's slate scale + white text. Light theme swaps
+   that scale (dark backgrounds ↔ light, light text ↔ dark) through the palette
+   variables, so every screen follows. Coloured buttons, the live camera view and
+   the storyboard paper keep their own colours. .theme-dark pins an area to the
+   dark palette in either theme (camera view, lighting diagram). */
+:root {
+  --app-bg: #0f1219;
+  --app-fg: #e2e8f0;
+}
+
+:root[data-theme="light"] {
+  --app-bg: #f3f5f9;
+  --app-fg: #0f172a;
+  --color-slate-50: #020617;
+  --color-slate-100: #0f172a;
+  --color-slate-200: #1e293b;
+  --color-slate-300: #334155;
+  --color-slate-400: #4b5a70;
+  --color-slate-500: #64748b;
+  --color-slate-600: #94a3b8;
+  --color-slate-700: #cbd5e1;
+  --color-slate-800: #e2e8f0;
+  --color-slate-850: #edf1f6;
+  --color-slate-900: #ffffff;
+  --color-slate-950: #f8fafc;
+  /* Accent text tuned for white backgrounds. */
+  --color-cinema-300: #3b5bfc;
+  --color-cinema-400: #2a42d4;
+  --color-onset-300: #009140;
+  --color-onset-400: #00803a;
+  --color-amber-300: #b45309;
+  --color-amber-400: #b45309;
+  --color-red-300: #b91c1c;
+  --color-red-400: #dc2626;
+  --color-blue-400: #2563eb;
+  --color-sky-300: #0369a1;
+}
+
+/* Primary text: white on dark, near-black on light — except on coloured fills. */
+:root[data-theme="light"] :is(.text-white):not(.theme-dark, .theme-dark *, [class*="bg-cinema-5"], [class*="bg-cinema-6"], [class*="bg-red-5"], [class*="bg-red-6"], [class*="bg-onset-5"], [class*="bg-onset-6"], [class*="bg-blue-5"], [class*="bg-blue-6"], [class*="bg-black"]) {
+  color: var(--color-slate-100);
+}
+:root[data-theme="light"] .fill-white:not(.theme-dark, .theme-dark *) { fill: var(--color-slate-100); }
+:root[data-theme="light"] .shadow-xl { box-shadow: 0 12px 32px rgb(15 23 42 / 0.12); }
+
+/* Areas that stay dark in either theme. */
+.theme-dark {
+  --color-slate-50: oklch(98.4% 0.003 247.858);
+  --color-slate-100: oklch(96.8% 0.007 247.896);
+  --color-slate-200: oklch(92.9% 0.013 255.508);
+  --color-slate-300: oklch(86.9% 0.022 252.894);
+  --color-slate-400: oklch(70.4% 0.04 256.788);
+  --color-slate-500: oklch(55.4% 0.046 257.417);
+  --color-slate-600: oklch(44.6% 0.043 257.281);
+  --color-slate-700: oklch(37.2% 0.044 257.287);
+  --color-slate-800: oklch(27.9% 0.041 260.031);
+  --color-slate-850: #172033;
+  --color-slate-900: oklch(20.8% 0.042 265.755);
+  --color-slate-950: oklch(12.9% 0.042 264.695);
+  --color-cinema-300: #8ba6ff;
+  --color-cinema-400: #5c7fff;
+  --color-onset-300: #6bffa8;
+  --color-onset-400: #2bfa7e;
+  --color-amber-300: oklch(87.9% 0.169 91.605);
+  --color-amber-400: oklch(82.8% 0.189 84.429);
+  --color-red-300: oklch(80.8% 0.114 19.571);
+  --color-red-400: oklch(70.4% 0.191 22.216);
+  --color-blue-400: oklch(70.7% 0.165 254.624);
+  --color-sky-300: oklch(82.8% 0.111 230.318);
+  color: #e2e8f0;
+}
+:root[data-theme="light"] .theme-dark.lighting-card { background: #0b1220; }
+
+/* High contrast: muted text and borders move toward full contrast. */
+:root[data-contrast="high"]:not([data-theme="light"]) {
+  --color-slate-300: #f1f5f9;
+  --color-slate-400: #e2e8f0;
+  --color-slate-500: #cbd5e1;
+  --color-slate-600: #94a3b8;
+  --color-slate-700: #64748b;
+  --color-slate-800: #475569;
+}
+:root[data-contrast="high"][data-theme="light"] {
+  --color-slate-300: #0f172a;
+  --color-slate-400: #1e293b;
+  --color-slate-500: #334155;
+  --color-slate-600: #475569;
+  --color-slate-700: #64748b;
+  --color-slate-800: #94a3b8;
+}
+
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: #0f1219;
-  color: #e2e8f0;
+  background: var(--app-bg);
+  color: var(--app-fg);
 }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -56,3 +148,22 @@ body {
 .animate-fadeIn { animation: fadeIn 0.3s ease-out; }
 .animate-slideIn { animation: slideIn 0.3s ease-out; }
 .animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+
+/* ─── Full report / PDF ─────────────────────────────────────────────────────
+   Keeps the app's dark look on paper: backgrounds print, sections start on new
+   pages, cards never split across a page break, and nothing animates. */
+.report-page { break-before: page; }
+.report-cover { break-before: auto; }
+.report-section { margin-top: 2.5rem; }
+
+@media print {
+  @page { size: A4 landscape; margin: 0; }
+  html, body, #root { height: auto; background: var(--app-bg) !important; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  .report .report-body { padding: 36px 44px; max-width: none; }
+  .report .report-page { padding-top: 12px; }
+  .report details > summary { list-style: none; }
+  /* Keep headings with what follows them. */
+  .report .report-heading { break-after: avoid; }
+}

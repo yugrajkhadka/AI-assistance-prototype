@@ -2,10 +2,21 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Camera, Circle, Square, Tag, Sliders, Grid3x3, Crosshair,
   Eye, EyeOff, Thermometer, Sun, Aperture, Clock, Film, Layers,
-  Wifi, WifiOff, Battery, HardDrive, Monitor, CheckCircle2, Loader2
+  Wifi, WifiOff, Battery, HardDrive, Monitor, CheckCircle2, Loader2,
+  AlertTriangle, Zap, Cpu
 } from 'lucide-react'
 import { useProject } from '../../context/ProjectContext'
 import { onset as onsetApi } from '../../services/api'
+import { cameraEngine, liveStreamUrl, toEngineSetting, formatEngineCamera } from '../../services/cameraEngine'
+import VisualCheckPanel from '../../components/onset/VisualCheckPanel'
+
+const SEVERITY_STYLE = {
+  critical: 'bg-red-600/90 text-white',
+  high: 'bg-red-500/80 text-white',
+  medium: 'bg-amber-500/80 text-black',
+  low: 'bg-sky-500/70 text-white',
+  info: 'bg-slate-700/80 text-slate-200',
+}
 
 const framingGuides = [
   { id: 'thirds', label: 'Rule of Thirds', icon: Grid3x3 },
@@ -118,8 +129,17 @@ export default function LiveCamera() {
   const [streaming, setStreaming] = useState(false)
   const [streamError, setStreamError] = useState('')
   const [savingSettings, setSavingSettings] = useState(false)
+  // Local C++ camera engine (cineassist-onset --http 8765): live view + real camera control.
+  const [engine, setEngine] = useState(null)
+  const [engineBusy, setEngineBusy] = useState(false)
+  const [engineMessage, setEngineMessage] = useState('')
+  const [streamKey, setStreamKey] = useState(0)
+  const [netForm, setNetForm] = useState({ address: '', model: 'ILCE-7M4', user: '', password: '' })
+  const [showConnect, setShowConnect] = useState(false)
   const videoRef = useRef(null)
   const streamRef = useRef(null)
+  const pushedPlanRef = useRef('')
+  const engineOnline = !!engine?.connected
 
   useEffect(() => {
     if (currentProject?._id) onsetApi.getData(currentProject._id).then(setOnsetData).catch(() => {})
@@ -142,7 +162,7 @@ export default function LiveCamera() {
     streamRef.current?.getTracks?.().forEach((track) => track.stop())
   }, [])
 
-  const scenes = onsetData?.scenes || analysisData?.scenes || []
+  const scenes = useMemo(() => onsetData?.scenes || analysisData?.scenes || [], [onsetData?.scenes, analysisData?.scenes])
   const scene = scenes[selectedScene] || { title: 'No Scene', shots: [], mood: '', style: '', characters: [], locations: [] }
   const shot = scene.shots?.[selectedShot] || { type: 'N/A', lens: '', movement: '', description: '', _id: null }
   const cam = useMemo(() => normalizeCameraSettings(onsetData?.cameraSettings || analysisData?.cameraSettings || defaultCam), [analysisData?.cameraSettings, onsetData?.cameraSettings])
@@ -151,6 +171,74 @@ export default function LiveCamera() {
     const device = devices.find((entry) => entry.deviceId === selectedDeviceId)
     return device?.label || (selectedDeviceId ? 'Connected Camera' : 'No Camera Selected')
   }, [devices, selectedDeviceId])
+
+  // Poll the camera engine. When it's running, it replaces the browser webcam path entirely.
+  useEffect(() => {
+    let cancelled = false
+    let wasOnline = false
+    const poll = async () => {
+      try {
+        const status = await cameraEngine.status()
+        if (cancelled) return
+        if (!wasOnline) setStreamKey((key) => key + 1)  // (re)attach the MJPEG stream
+        wasOnline = true
+        setEngine(status)
+      } catch {
+        if (cancelled) return
+        wasOnline = false
+        pushedPlanRef.current = ''
+        setEngine(null)
+      }
+    }
+    poll()
+    const id = setInterval(poll, 700)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
+
+  // Send the web app's plan to the engine so its guidance compares against this project.
+  const cameraSettingsForEngine = onsetData?.cameraSettings || analysisData?.cameraSettings
+  useEffect(() => {
+    if (!engineOnline || scenes.length === 0) return
+    const key = JSON.stringify([scenes, cameraSettingsForEngine])
+    if (pushedPlanRef.current === key) return
+    pushedPlanRef.current = key
+    cameraEngine.loadProject(scenes, cameraSettingsForEngine)
+      .then(() => cameraEngine.select(selectedScene, selectedShot))
+      .catch((error) => { pushedPlanRef.current = ''; setEngineMessage(error.message) })
+  }, [engineOnline, scenes, cameraSettingsForEngine, selectedScene, selectedShot])
+
+  useEffect(() => {
+    if (!engineOnline || !engine?.havePlan) return
+    if (engine.sceneIndex === selectedScene && engine.shotIndex === selectedShot) return
+    cameraEngine.select(selectedScene, selectedShot).then(setEngine).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engineOnline, engine?.havePlan, selectedScene, selectedShot])
+
+  const runEngine = async (action) => {
+    setEngineBusy(true)
+    setEngineMessage('')
+    try {
+      const status = await action()
+      if (status?.connected !== undefined) setEngine(status)
+      const result = status?.results?.join(' · ') || status?.result
+      if (result) setEngineMessage(result)
+    } catch (error) {
+      setEngineMessage(error.message)
+    } finally {
+      setEngineBusy(false)
+    }
+  }
+
+  // Mirror a settings change onto the physical camera when the engine is connected.
+  const pushToCamera = (kind, value) => {
+    if (!engineOnline) return
+    const [property, engineValue] = toEngineSetting[kind](value)
+    if (!Number.isFinite(engineValue)) return
+    runEngine(() => cameraEngine.set(property, engineValue))
+  }
+
+  const live = formatEngineCamera(engine?.camera)
+  const isRecording = engineOnline ? !!live?.recording : recording
 
   const toggleOverlay = (id) => setOverlays((current) => ({ ...current, [id]: !current[id] }))
 
@@ -195,6 +283,7 @@ export default function LiveCamera() {
   }
 
   const updateSimpleSetting = async (key, value) => {
+    if (key !== 'lens') pushToCamera(key, value)  // focal length is physical glass; can't be set remotely
     if (key === 'iso') return persistCamera({ iso: { ...cam.iso, value } })
     if (key === 'whiteBalance') return persistCamera({ whiteBalance: { ...cam.whiteBalance, value } })
     if (key === 'nd') return persistCamera({ nd: { ...cam.nd, value } })
@@ -210,16 +299,19 @@ export default function LiveCamera() {
   }
 
   const updateShutterFromAngle = async (angle) => {
+    pushToCamera('shutterAngle', angle)
     const value = formatShutterSpeed(cam.frameRate, angle)
     await persistCamera({ shutter: { ...cam.shutter, angle, value, mode: 'angle' } })
   }
 
   const updateShutterFromSpeed = async (value) => {
+    pushToCamera('shutterSpeed', value)
     const angle = formatShutterAngle(cam.frameRate, value)
     await persistCamera({ shutter: { ...cam.shutter, value, angle, mode: 'speed' } })
   }
 
   const updateExposureFromTStop = async (tStop) => {
+    pushToCamera('aperture', tStop)
     const fStop = T_TO_F_MAP[tStop] || cam.exposure.fStop
     await persistCamera({
       exposure: { ...cam.exposure, value: tStop, tStop, fStop },
@@ -228,6 +320,7 @@ export default function LiveCamera() {
   }
 
   const updateExposureFromFStop = async (fStop) => {
+    pushToCamera('aperture', fStop)
     const tStop = F_TO_T_MAP[fStop] || cam.exposure.tStop
     await persistCamera({
       exposure: { ...cam.exposure, value: tStop, tStop, fStop },
@@ -235,7 +328,18 @@ export default function LiveCamera() {
     })
   }
 
+  const toggleRecord = () => {
+    if (engineOnline) {
+      if (isRecording) setCurrentTake((take) => take + 1)
+      runEngine(() => cameraEngine.record(!isRecording))
+      return
+    }
+    if (recording) setCurrentTake((take) => take + 1)
+    setRecording((current) => !current)
+  }
+
   const completeShot = async () => {
+    if (engineOnline) cameraEngine.complete(`Completed take ${currentTake} on live camera.`).catch(() => {})
     if (!currentProject?._id || !shot._id) return
     const result = await onsetApi.completeShot(currentProject._id, selectedScene, shot._id, { notes: `Completed take ${currentTake} on live camera.` })
     const updatedShot = result.shot
@@ -250,18 +354,47 @@ export default function LiveCamera() {
   return (
     <div className="animate-fadeIn -m-6">
       <div className="flex flex-col xl:flex-row h-auto xl:h-[calc(100vh-3rem)]">
-        <div className="flex-1 flex flex-col bg-black relative min-h-[55vh]">
+        <div className="theme-dark flex-1 flex flex-col bg-black relative min-h-[55vh]">
           <div className="flex-1 relative overflow-hidden">
-            {streaming ? (
-              <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline muted />
+            {engineOnline ? (
+              // Camera engine live view: MJPEG over HTTP, so no browser camera permission is involved.
+              <img
+                key={streamKey}
+                src={`${liveStreamUrl()}?k=${streamKey}`}
+                alt="Live camera feed"
+                className="absolute inset-0 w-full h-full object-contain bg-black"
+                onError={() => setTimeout(() => setStreamKey((key) => key + 1), 1000)}
+              />
             ) : (
+              <video
+                ref={videoRef}
+                className={`absolute inset-0 w-full h-full object-cover ${streaming ? '' : 'hidden'}`}
+                playsInline
+                muted
+              />
+            )}
+            {!streaming && !engineOnline && (
               <div className="absolute inset-0 bg-gradient-to-br from-slate-800 via-slate-900 to-black flex items-center justify-center">
                 <div className="text-center max-w-sm px-6">
                   <Camera className="w-16 h-16 text-slate-700 mx-auto mb-3" />
-                  <div className="text-slate-300 text-sm">Connect a browser-visible camera to preview live video.</div>
-                  <div className="text-slate-500 text-xs mt-2">This supports webcams and capture devices exposed through the browser. Camera-body control is mirrored in-app through realistic settings logic.</div>
+                  <div className="text-slate-300 text-sm">Waiting for the camera engine…</div>
+                  <div className="text-slate-500 text-xs mt-2">
+                    Start it with <code className="text-slate-300">npm run engine</code> to get the real camera feed and control
+                    (Sony over USB/Ethernet, simulator otherwise). Or use <span className="text-slate-300">Start Feed</span> for a browser webcam.
+                  </div>
                   {streamError && <div className="text-red-400 text-xs mt-3">{streamError}</div>}
                 </div>
+              </div>
+            )}
+
+            {engineOnline && showHUD && (engine.guidance || []).length > 0 && (
+              <div className="absolute top-14 left-4 max-w-[60%] space-y-1.5 pointer-events-none">
+                {engine.guidance.filter((item) => !item.blockedByLock).slice(0, 3).map((item) => (
+                  <div key={item.id} className={`px-2.5 py-1.5 rounded-md text-[11px] leading-4 shadow-lg backdrop-blur-sm ${SEVERITY_STYLE[item.severity] || SEVERITY_STYLE.info}`}>
+                    <div className="font-semibold flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{item.title}</div>
+                    <div className="opacity-90">→ {item.fix}</div>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -285,7 +418,7 @@ export default function LiveCamera() {
               </div>
             )}
 
-            {recording && (
+            {isRecording && (
               <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded bg-red-600/90">
                 <Circle className="w-3 h-3 fill-white text-white animate-pulse" />
                 <span className="text-white text-xs font-medium">REC</span>
@@ -296,22 +429,42 @@ export default function LiveCamera() {
             {showHUD && (
               <>
                 <div className="absolute top-3 right-4 flex flex-wrap justify-end gap-3 text-[11px]">
-                  <div className={`flex items-center gap-1 ${streaming ? 'text-white/50' : 'text-red-300/70'}`}>
-                    {streaming ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
-                    <span>{connectedLabel}</span>
+                  <div className={`flex items-center gap-1 ${streaming || engineOnline ? 'text-white/50' : 'text-red-300/70'}`}>
+                    {streaming || engineOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                    <span>{engineOnline ? `${live.model} · ${engine.backend}` : connectedLabel}</span>
                   </div>
+                  {engineOnline && (
+                    <div className="flex items-center gap-1 text-white/70">
+                      <Zap className="w-3 h-3" />
+                      <span>READY {engine.readiness}% · PLAN {engine.deviations?.overallMatch ?? 100}%</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-1 text-white/50">
                     <Battery className="w-3 h-3" />
-                    <span>87%</span>
+                    <span>{engineOnline ? live.battery : '--'}</span>
                   </div>
                   <div className="flex items-center gap-1 text-white/50">
                     <HardDrive className="w-3 h-3" />
-                    <span>{cam.codec}</span>
+                    <span className="max-w-[14rem] truncate" title={cam.codec}>{String(cam.codec || '').split(/[.(]/)[0]}</span>
                   </div>
                 </div>
 
                 <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent pt-12 pb-3 px-4">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                    {engineOnline ? (
+                      <div className="flex flex-wrap gap-4 text-[11px] text-white/70">
+                        <div><div className="text-white/40">IRIS</div><div className="text-white font-mono">{live.aperture}</div></div>
+                        <div><div className="text-white/40">ISO</div><div className="text-white font-mono">{live.iso}</div></div>
+                        <div><div className="text-white/40">SHUTTER</div><div className="text-white font-mono">{live.angle} / {live.shutter}</div></div>
+                        <div><div className="text-white/40">FPS</div><div className="text-white font-mono">{live.frameRate}</div></div>
+                        <div><div className="text-white/40">WB</div><div className="text-white font-mono">{live.whiteBalance}</div></div>
+                        <div><div className="text-white/40">ND</div><div className="text-white font-mono">{live.nd}</div></div>
+                        <div><div className="text-white/40">LENS</div><div className="text-white font-mono">{live.focal}</div></div>
+                        {engine.frame?.valid && (
+                          <div><div className="text-white/40">EXPOSURE</div><div className="text-white font-mono">{engine.frame.evOffset > 0 ? '+' : ''}{engine.frame.evOffset.toFixed(1)} EV · clip {(engine.frame.clippedFraction * 100).toFixed(1)}%</div></div>
+                        )}
+                      </div>
+                    ) : (
                     <div className="flex flex-wrap gap-4 text-[11px] text-white/70">
                       <div><div className="text-white/40">T-STOP</div><div className="text-white font-mono">{cam.exposure.tStop}</div></div>
                       <div><div className="text-white/40">F-STOP</div><div className="text-white font-mono">{cam.exposure.fStop}</div></div>
@@ -320,6 +473,7 @@ export default function LiveCamera() {
                       <div><div className="text-white/40">WB</div><div className="text-white font-mono">{cam.whiteBalance?.value}</div></div>
                       <div><div className="text-white/40">LENS</div><div className="text-white font-mono">{cam.lens?.focal}</div></div>
                     </div>
+                    )}
                     <div className="text-right text-[11px]">
                       <div className="text-white/40">SCENE {scene.number} / SHOT {selectedShot + 1} / TAKE {currentTake}</div>
                       <div className="text-white font-medium">{shot.type} — {shot.lens}</div>
@@ -353,19 +507,23 @@ export default function LiveCamera() {
                 <Tag className="w-3.5 h-3.5" /> Complete Shot
               </button>
               <button
-                onClick={() => {
-                  if (recording) setCurrentTake((take) => take + 1)
-                  setRecording((current) => !current)
-                }}
+                onClick={toggleRecord}
+                title={engineOnline ? 'Start/stop recording on the camera' : 'Mark recording (no camera engine)'}
                 className={`w-12 h-12 rounded-full flex items-center justify-center transition ${
-                  recording ? 'bg-red-600 hover:bg-red-700' : 'bg-red-600/20 hover:bg-red-600/40 border-2 border-red-500'
+                  isRecording ? 'bg-red-600 hover:bg-red-700' : 'bg-red-600/20 hover:bg-red-600/40 border-2 border-red-500'
                 }`}
               >
-                {recording ? <Square className="w-5 h-5 text-white fill-white" /> : <Circle className="w-5 h-5 text-red-400 fill-red-500" />}
+                {isRecording ? <Square className="w-5 h-5 text-white fill-white" /> : <Circle className="w-5 h-5 text-red-400 fill-red-500" />}
               </button>
-              <button onClick={streaming ? stopCamera : startCamera} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs hover:bg-slate-700 transition">
-                {streaming ? 'Disconnect Feed' : 'Start Feed'}
-              </button>
+              {engineOnline ? (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-onset-500/15 text-onset-400 text-xs">
+                  <Cpu className="w-3.5 h-3.5" /> Camera engine · {engine.liveFps || 0} fps
+                </span>
+              ) : (
+                <button onClick={streaming ? stopCamera : startCamera} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs hover:bg-slate-700 transition">
+                  {streaming ? 'Disconnect Feed' : 'Start Feed'}
+                </button>
+              )}
             </div>
 
             <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -376,10 +534,203 @@ export default function LiveCamera() {
           </div>
         </div>
 
-        <div className="w-full xl:w-[26rem] bg-slate-900 border-l border-slate-800 flex flex-col overflow-hidden">
+        <div className="w-full xl:w-[26rem] bg-slate-900 border-l border-slate-800 flex flex-col overflow-y-auto">
+          <VisualCheckPanel
+            projectId={currentProject?._id}
+            scenes={scenes}
+            selectedScene={selectedScene}
+            selectedShot={selectedShot}
+            engineOnline={engineOnline}
+            engineCamera={engine?.camera}
+            videoRef={videoRef}
+            liveAvailable={engineOnline || streaming}
+            onSelectShot={(sceneIndex, shotIndex) => {
+              setSelectedScene(sceneIndex)
+              setSelectedShot(shotIndex)
+              setCurrentTake((scenes[sceneIndex]?.shots?.[shotIndex]?.takes || 0) + 1)
+            }}
+          />
+          <div className="p-3 border-b border-slate-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-medium text-white">
+                <Cpu className="w-4 h-4 text-cinema-400" /> Camera Engine
+              </div>
+              <span className={`text-[11px] px-2 py-0.5 rounded ${engineOnline ? 'bg-onset-500/15 text-onset-400' : 'bg-slate-800 text-slate-500'}`}>
+                {engineOnline ? `${engine.backend === 'sim' ? 'Simulator' : live.model} connected` : 'offline'}
+              </span>
+            </div>
+            {!engineOnline && (
+              <div className="text-xs text-slate-500 leading-5">
+                Run <code className="text-slate-300">npm run engine</code> to stream the camera here and control it.
+                A Sony body in <span className="text-slate-300">PC Remote</span> mode is picked up automatically; otherwise the simulator runs.
+              </div>
+            )}
+            {engineOnline && (
+              <>
+                <div className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className="text-slate-400 truncate">
+                    {engine.backend === 'sim' ? 'Simulator — no camera connected' : `${live.model} · ${engine.connection || engine.backend}`}
+                  </span>
+                  <button onClick={() => setShowConnect((open) => !open)} className="shrink-0 px-2 py-0.5 rounded bg-slate-800 text-slate-300 hover:text-white">
+                    {showConnect ? 'Close' : 'Connect camera'}
+                  </button>
+                </div>
+                {engine.lastConnectError && engine.backend === 'sim' && (
+                  <div className="text-[11px] text-amber-400 leading-4">{engine.lastConnectError}</div>
+                )}
+                {showConnect && (
+                  <div className="p-2.5 rounded-lg bg-slate-950/70 border border-slate-800 space-y-2">
+                    <div className="text-[11px] text-slate-400 leading-4">
+                      <b className="text-slate-300">USB:</b> camera USB Connection Mode = PC Remote, then Connect with the address empty.
+                      <br /><b className="text-slate-300">Wi-Fi:</b> camera PC Remote = On, connection method Wi-Fi, same network as this computer.
+                      Leave the address empty to auto-discover, or enter the IP shown on the camera.
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <input
+                        value={netForm.address}
+                        onChange={(event) => setNetForm((form) => ({ ...form, address: event.target.value.trim() }))}
+                        placeholder="Camera IP (optional)"
+                        className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
+                      />
+                      <select
+                        value={netForm.model}
+                        onChange={(event) => setNetForm((form) => ({ ...form, model: event.target.value }))}
+                        className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
+                        title="Only needed when the camera can't be auto-discovered"
+                      >
+                        {['ILCE-7M4', 'ILCE-7SM3', 'ILCE-1', 'ILCE-1M2', 'ILCE-7RM5', 'ILCE-9M3', 'ILCE-6700', 'ILME-FX3', 'ILME-FX3A', 'ILME-FX30', 'ILME-FX6', 'ILME-FX2', 'ZV-E1'].map((model) => (
+                          <option key={model} value={model}>{model}</option>
+                        ))}
+                      </select>
+                      <input
+                        value={netForm.user}
+                        onChange={(event) => setNetForm((form) => ({ ...form, user: event.target.value }))}
+                        placeholder="Access auth user"
+                        autoComplete="username"
+                        className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
+                      />
+                      <input
+                        type="password"
+                        value={netForm.password}
+                        onChange={(event) => setNetForm((form) => ({ ...form, password: event.target.value }))}
+                        placeholder={engine.network?.hasPassword ? 'Password (saved)' : 'Password'}
+                        autoComplete="current-password"
+                        className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-white"
+                      />
+                    </div>
+                    {engine.pendingFingerprint && (
+                      <div className="text-[11px] text-slate-400 break-all">
+                        Camera fingerprint: <span className="font-mono text-slate-200">{engine.pendingFingerprint}</span>
+                        <div className="text-slate-500">Check it matches the camera screen before connecting over Wi-Fi.</div>
+                      </div>
+                    )}
+                    <div className="flex gap-1.5">
+                      <button
+                        disabled={engineBusy}
+                        onClick={() => runEngine(async () => {
+                          const status = await cameraEngine.connect(netForm)
+                          setShowConnect(false)
+                          return status
+                        })}
+                        className="flex-1 px-2 py-1 rounded bg-cinema-500 hover:bg-cinema-600 disabled:opacity-50 text-white text-xs"
+                      >
+                        {engineBusy ? 'Connecting… accept any prompt on the camera' : 'Connect'}
+                      </button>
+                      <button
+                        disabled={engineBusy}
+                        onClick={() => runEngine(() => cameraEngine.useSimulator())}
+                        className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 text-xs"
+                      >
+                        Use simulator
+                      </button>
+                    </div>
+                    {engine.fingerprint && engine.backend !== 'sim' && (
+                      <div className="text-[10px] text-slate-500 break-all">Pinned host key: <span className="font-mono">{engine.fingerprint}</span></div>
+                    )}
+                  </div>
+                )}
+                <div className="flex gap-1">
+                  {['suggest', 'assist', 'lock'].map((mode) => (
+                    <button
+                      key={mode}
+                      onClick={() => runEngine(() => cameraEngine.mode(mode))}
+                      className={`flex-1 px-2 py-1 rounded text-xs capitalize transition ${engine.mode === mode ? 'bg-cinema-500 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'}`}
+                    >
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+                {engine.mode === 'lock' && (
+                  <div className="flex gap-1">
+                    {['camera', 'lighting', 'framing'].map((area) => (
+                      <button
+                        key={area}
+                        onClick={() => runEngine(() => cameraEngine.locks({ [area]: !engine.locks?.[area] }))}
+                        className={`flex-1 px-2 py-1 rounded text-[11px] capitalize transition ${engine.locks?.[area] ? 'bg-onset-500/20 text-onset-400 border border-onset-500/30' : 'bg-slate-800 text-slate-500 hover:text-white'}`}
+                      >
+                        {engine.locks?.[area] ? 'Locked ' : ''}{area}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  {(engine.adjustments || []).length === 0 && (
+                    <div className="text-xs text-onset-400 flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5" /> Camera matches the plan — nothing to change.</div>
+                  )}
+                  {(engine.adjustments || []).map((item, index) => (
+                    <div key={`${item.label}-${index}`} className="flex items-center gap-2 p-2 rounded-lg bg-slate-800/60">
+                      <span className="text-xs text-slate-200 flex-1">{item.label}</span>
+                      <button
+                        disabled={engineBusy}
+                        onClick={() => runEngine(() => cameraEngine.apply(index))}
+                        className="px-2 py-1 rounded bg-cinema-500 hover:bg-cinema-600 disabled:opacity-50 text-white text-[11px]"
+                      >
+                        Apply to camera
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  {(engine.adjustments || []).length > 1 && (
+                    <button
+                      disabled={engineBusy}
+                      onClick={() => runEngine(() => cameraEngine.applyAll())}
+                      className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-[11px]"
+                    >
+                      Apply all
+                    </button>
+                  )}
+                  <label className="flex items-center gap-1.5 text-[11px] text-slate-400 ml-auto cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!engine.autoApply}
+                      onChange={(event) => runEngine(() => cameraEngine.autoApply(event.target.checked))}
+                    />
+                    Auto-apply safest fix
+                  </label>
+                  {engineBusy && <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" />}
+                </div>
+                {engineMessage && <div className="text-[11px] text-slate-400">{engineMessage}</div>}
+
+                {(engine.guidance || []).length > 0 && (
+                  <div className="space-y-1 pt-1">
+                    {engine.guidance.slice(0, 6).map((item) => (
+                      <div key={item.id} className={`text-[11px] leading-4 ${item.blockedByLock ? 'opacity-40' : ''}`}>
+                        <span className={`inline-block px-1.5 rounded mr-1.5 ${SEVERITY_STYLE[item.severity] || SEVERITY_STYLE.info}`}>{item.severity}</span>
+                        <span className="text-slate-200">{item.title}</span>
+                        <div className="text-slate-500 pl-1">→ {item.fix}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
           <div className="p-3 border-b border-slate-800 space-y-3">
             <div>
-              <div className="text-sm font-medium text-white mb-2">Live Camera Feed</div>
+              <div className="text-sm font-medium text-white mb-2">Browser Camera (fallback)</div>
               <select
                 value={selectedDeviceId}
                 onChange={(event) => setSelectedDeviceId(event.target.value)}

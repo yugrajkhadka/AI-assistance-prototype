@@ -104,6 +104,35 @@ router.patch('/:projectId/camera-settings', optionalAuth, async (req, res, next)
   } catch (err) { next(err) }
 })
 
+// AI visual check — Claude compares a live-view frame with the pre-production plan
+router.post('/:projectId/visual-check', optionalAuth, async (req, res, next) => {
+  try {
+    const analysis = isDatabaseReady()
+      ? await Analysis.findOne({ project: req.params.projectId })
+      : await findAnalysisByProject(req.params.projectId)
+    if (!analysis) return res.status(404).json({ error: 'Analysis not found' })
+
+    const match = String(req.body.image || '').match(/^(?:data:(image\/(?:jpeg|png|webp));base64,)?([A-Za-z0-9+/=]+)$/)
+    if (!match) return res.status(400).json({ error: 'Send the frame as a base64 JPEG, PNG or WebP in "image"' })
+    const ref = String(req.body.reference || '').match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/)
+    const toIndex = (v) => (v === undefined || v === null || v === '' ? undefined : Number.parseInt(v, 10))
+
+    const result = await ai.analyzeOnsetFrame(analysis.toObject?.() || analysis, {
+      imageBase64: match[2],
+      mediaType: match[1] || 'image/jpeg',
+      reference: ref ? { mediaType: ref[1], data: ref[2] } : undefined,
+      sceneIndex: toIndex(req.body.sceneIndex),
+      shotIndex: toIndex(req.body.shotIndex),
+      camera: req.body.camera,
+      frameStats: req.body.frameStats,
+    })
+    res.json(result)
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message })
+    next(err)
+  }
+})
+
 // Add note to a shot
 router.post('/:projectId/scene/:sceneIndex/shot/:shotId/note', optionalAuth, async (req, res, next) => {
   try {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   Film, Video, FolderOpen, Settings, HelpCircle, Search, Undo2, Redo2,
   MessageSquare, Download, Bell, ChevronDown, Menu, X, Clapperboard
@@ -32,6 +32,7 @@ const navItems = [
 export default function AppShell() {
   const location = useLocation()
   const { currentProject } = useProject()
+  const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [contextOpen, setContextOpen] = useState(false)
   const [notifications] = useState([
@@ -142,7 +143,12 @@ export default function AppShell() {
             >
               <MessageSquare className="w-4 h-4" />
             </button>
-            <button className="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition" title="Export">
+            <button
+              onClick={() => currentProject?._id && navigate(`/report/${currentProject._id}`)}
+              disabled={!currentProject?._id}
+              className="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-40 disabled:hover:bg-transparent transition"
+              title={currentProject?._id ? 'Full report (PDF)' : 'Open a project to export its report'}
+            >
               <Download className="w-4 h-4" />
             </button>
             <div className="relative">

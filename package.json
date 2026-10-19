@@ -8,7 +8,9 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "cd server && npm test"
+    "test": "cd server && npm test",
+    "engine:build": "cmake -S cineassist-core -B cineassist-core/build -DCMAKE_BUILD_TYPE=Release && cmake --build cineassist-core/build -j",
+    "engine": "./cineassist-core/build/cineassist-onset --backend auto --http 8765"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.2",

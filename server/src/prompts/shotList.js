@@ -9,6 +9,9 @@ Characters: {characters}
 Location: {location}
 Props: {props}
 
+LIGHTING PLAN (already rigged — every shot's "lighting" must use these sources and directions; say which unit keys the shot and adjust only what a crew would trim per setup, e.g. flag the fill, add a kicker, cheat the key for the reverse):
+{lightingPlan}
+
 INSTRUCTIONS:
 - Design 4-8 shots that build dramatic tension across the scene
 - Think in coverage: wide establish → mid geography → close psychology → inserts
